@@ -33,8 +33,8 @@ public sealed class GameSimulation
 
     public void Register(ISimulationSystem system)
     {
-        if (system.Schedule.PeriodHours <= 0)
-            throw new ArgumentException($"У системы «{system.Name}» период должен быть положительным.");
+        if (!system.Schedule.IsValid)
+            throw new ArgumentException($"У системы «{system.Name}» не задано расписание.");
         _systems.Add((system, _systems.Count));
         // Сортировка один раз при регистрации: шаг не тратит на неё время.
         _systems.Sort((a, b) => a.System.Phase != b.System.Phase
@@ -58,7 +58,7 @@ public sealed class GameSimulation
         State.Time = completed;
         foreach (var (system, _) in _systems)
         {
-            if (system.Schedule.IsDue(completed))
+            if (system.Schedule.IsDue(completed, State.Calendar))
                 system.Run(State);
         }
 

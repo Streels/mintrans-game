@@ -20,7 +20,7 @@ public partial class TimeControls : PanelContainer
         row.AddThemeConstantOverride("separation", 6);
         AddChild(row);
 
-        _clock = new Label { CustomMinimumSize = new Vector2(150, 0), VerticalAlignment = VerticalAlignment.Center };
+        _clock = new Label { CustomMinimumSize = new Vector2(210, 0), VerticalAlignment = VerticalAlignment.Center };
         _clock.AddThemeFontSizeOverride("font_size", 16);
         row.AddChild(_clock);
 
@@ -42,7 +42,7 @@ public partial class TimeControls : PanelContainer
 
     public override void _Process(double delta)
     {
-        _clock.Text = _driver.Simulation.Time.ToString();
+        _clock.Text = _driver.Simulation.State.Calendar.Format(_driver.Simulation.Time);
         // Держим панель в правом верхнем углу при любом размере окна.
         Position = new Vector2(GetViewportRect().Size.X - Size.X - 12, 12);
     }

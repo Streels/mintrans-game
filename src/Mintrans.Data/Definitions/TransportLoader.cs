@@ -21,6 +21,14 @@ public static class TransportLoader
             node.Int("unitsPerCell"),
             node.Get("trains").Element.GetBoolean())).ToList();
 
+        var bodies = root.Find("bodies")?.Items().Select(node =>
+        {
+            var cargo = Ids(node.Get("cargo"));
+            foreach (var resource in cargo.Where(r => !resources.Contains(r)))
+                throw node.Get("cargo").Error($"нет ресурса «{resource}» в economy/resources.json");
+            return new TruckBody(node.String("id"), node.String("title"), cargo);
+        }).ToList() ?? [];
+
         var models = root.Get("models").Items().Select(node =>
         {
             var role = node.String("role") switch
@@ -41,7 +49,10 @@ public static class TransportLoader
                 node.Find("speed")?.AsDouble() ?? 0,
                 Mass.FromTonnes(node.Find("capacity")?.AsDouble() ?? 0),
                 cargo,
-                node.Int("length", 1));
+                node.Int("length", 1),
+                node.Int("availableFromYear", 0),
+                node.Int("maxWagons", 0),
+                node.Find("bodies") is { } list2 ? Ids(list2) : null);
         }).ToList();
 
         var maintenance = root.Get("maintenance");
@@ -52,7 +63,8 @@ public static class TransportLoader
                 models,
                 networks,
                 new MaintenanceRules(maintenance.Double("wearPerCell"), maintenance.Double("serviceAt"), maintenance.Int("serviceHours")),
-                new LoadingRules(loading.Int("maxWaitHours")));
+                new LoadingRules(loading.Int("maxWaitHours")),
+                bodies);
         }
         catch (ArgumentException e)
         {

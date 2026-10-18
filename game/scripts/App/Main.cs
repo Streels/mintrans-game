@@ -98,7 +98,10 @@ public partial class Main : Node2D
         _highlight.Init(map, _projection, style);
 
         // Симуляция и её модули: экономика (склады, добыча, переработка, спрос) и транспорт (техника, маршруты).
-        var simulation = _simulation = new GameSimulation(new SimulationState(map));
+        var simulation = _simulation = new GameSimulation(new SimulationState(map, calendar: content.Simulation.Calendar));
+        // Сообщения игроку (новая техника и т. п.) — строкой вверху экрана.
+        simulation.State.Log.Posted += message =>
+            _hud.ShowNews($"{simulation.State.Calendar.FormatDate(message.Time)}: {message.Text}");
         _economy = EconomyModule.Install(simulation, content.Economy);
         EconomyLoader.SeedStocks(_economy, description);
         var transport = TransportModule.Install(simulation, content.Transport);

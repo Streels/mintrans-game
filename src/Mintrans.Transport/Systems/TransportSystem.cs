@@ -200,7 +200,7 @@ public sealed class TransportSystem : ISimulationSystem
         var used = Mass.Zero;
         foreach (var unit in vehicle.Units.Where(u => u.Free > Mass.Zero))
         {
-            var candidates = unit.CargoType is { } type ? [type] : unit.Model.Cargo;
+            var candidates = unit.CargoType is { } type ? [type] : unit.Carries;
             foreach (var resource in candidates.Where(Wanted))
             {
                 var room = receiver.Stock.Free(resource) - vehicle.CargoOf(resource);
@@ -216,7 +216,7 @@ public sealed class TransportSystem : ISimulationSystem
         }
         context.Spend(sender, used);
 
-        var loadable = vehicle.Units.Where(u => u.Model.Cargo.Any(Wanted)).ToList();
+        var loadable = vehicle.Units.Where(u => u.Carries.Any(Wanted)).ToList();
         if (loadable.Count == 0)
         {
             vehicle.Reason = "нет вагонов для груза, нужного получателю";
@@ -230,7 +230,7 @@ public sealed class TransportSystem : ISimulationSystem
             return;
         }
         vehicle.Reason = used > Mass.Zero ? "грузится"
-            : loadable.All(u => u.Model.Cargo.Where(Wanted).All(r => receiver.Stock.Free(r) - vehicle.CargoOf(r) <= Mass.Zero))
+            : loadable.All(u => u.Carries.Where(Wanted).All(r => receiver.Stock.Free(r) - vehicle.CargoOf(r) <= Mass.Zero))
                 ? "ждёт: у получателя нет места"
                 : "ждёт груз";
     }
@@ -266,14 +266,34 @@ public sealed class TransportSystem : ISimulationSystem
     }
 }
 
+/// <summary>
+/// В начале каждого года сообщает игроку о технике, которая с этого года продаётся (docs/14).
+/// Купленная раньше техника продолжает работать.
+/// </summary>
+public sealed class NewModelsSystem : ISimulationSystem
+{
+    public string Name => "transport.new_models";
+    public Schedule Schedule => Schedule.Yearly;
+    public int Phase => Phases.Statistics;
+
+    public void Run(SimulationState state)
+    {
+        var year = state.Year;
+        var fresh = state.Get<TransportState>().Catalog.Models.Where(m => m.AvailableFromYear == year).ToList();
+        if (fresh.Count > 0)
+            state.Log.Post(state.Time, $"С {year} года доступна новая техника: {string.Join(", ", fresh.Select(m => m.Title))}.");
+    }
+}
+
 /// <summary>Подключение транспорта к симуляции. Экономика должна быть подключена раньше.</summary>
 public static class TransportModule
 {
     public static TransportState Install(GameSimulation simulation, TransportCatalog catalog)
     {
-        var transport = new TransportState(simulation.State.Map, catalog);
+        var transport = new TransportState(simulation.State.Map, catalog, () => simulation.State.Year);
         simulation.State.Add(transport);
         simulation.Register(new TransportSystem());
+        simulation.Register(new NewModelsSystem());
         return transport;
     }
 

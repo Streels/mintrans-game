@@ -22,7 +22,7 @@ public interface ISimulationSystem
 }
 
 /// <summary>Период вызова системы в игровых часах. Вызов — в конце каждого полного периода.</summary>
-public readonly record struct Schedule(int PeriodHours)
+public readonly record struct Schedule(int PeriodHours, CalendarPeriod Calendar = CalendarPeriod.None)
 {
     /// <summary>Каждый игровой час.</summary>
     public static readonly Schedule Hourly = new(1);
@@ -33,8 +33,34 @@ public readonly record struct Schedule(int PeriodHours)
     /// <summary>Раз в игровую неделю.</summary>
     public static readonly Schedule Weekly = new(GameTime.HoursPerWeek);
 
+    /// <summary>В начале каждого календарного месяца.</summary>
+    public static readonly Schedule Monthly = new(0, CalendarPeriod.Month);
+
+    /// <summary>В начале каждого календарного квартала (рост предприятий и городов, docs/05).</summary>
+    public static readonly Schedule Quarterly = new(0, CalendarPeriod.Quarter);
+
+    /// <summary>В начале каждого года (открытие новой техники, docs/14).</summary>
+    public static readonly Schedule Yearly = new(0, CalendarPeriod.Year);
+
+    public bool IsValid => Calendar != CalendarPeriod.None || PeriodHours > 0;
+
     /// <summary>Нужно ли вызвать систему, когда только что завершился час и время стало <paramref name="now"/>.</summary>
-    public bool IsDue(GameTime now) => PeriodHours > 0 && now.Hours % PeriodHours == 0;
+    public bool IsDue(GameTime now, GameCalendar calendar) => Calendar switch
+    {
+        CalendarPeriod.Month => calendar.IsStartOfMonth(now),
+        CalendarPeriod.Quarter => calendar.IsStartOfQuarter(now),
+        CalendarPeriod.Year => calendar.IsStartOfYear(now),
+        _ => PeriodHours > 0 && now.Hours % PeriodHours == 0,
+    };
+}
+
+/// <summary>Календарный период расписания: месяцы и кварталы разной длины, поэтому считаются по датам.</summary>
+public enum CalendarPeriod
+{
+    None,
+    Month,
+    Quarter,
+    Year,
 }
 
 /// <summary>

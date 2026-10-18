@@ -22,12 +22,24 @@ public sealed class TransportState
     private readonly Dictionary<TypeId, int> _counters = new();
     private int _nextId = 1;
 
-    public TransportState(WorldMap map, TransportCatalog catalog)
+    private readonly Func<int> _year;
+
+    /// <param name="year">Текущий игровой год — по нему открываются модели (docs/14). Без него доступно всё.</param>
+    public TransportState(WorldMap map, TransportCatalog catalog, Func<int>? year = null)
     {
         _map = map;
         Catalog = catalog;
         Stops = new StopIndex(map, catalog);
+        _year = year ?? (() => int.MaxValue);
     }
+
+    public int Year => _year();
+
+    public bool IsAvailable(VehicleModel model) => model.AvailableFromYear <= Year;
+
+    /// <summary>Модели, которые сейчас продаются для данной сети.</summary>
+    public IEnumerable<VehicleModel> ForSale(TypeId network) =>
+        Catalog.Models.Where(m => m.Network == network && IsAvailable(m));
 
     public TransportCatalog Catalog { get; }
     public StopIndex Stops { get; }
@@ -47,7 +59,8 @@ public sealed class TransportState
     /// Купить технику в депо или гараже: локомотив — начало нового состава, грузовик — готовая машина.
     /// Вагоны добавляются к составу через <see cref="AddWagon"/>.
     /// </summary>
-    public Vehicle Buy(FacilityId depotId, TypeId modelId)
+    /// <param name="bodyId">Кузов грузовика (самосвал, бортовой); для моделей без выбора кузова — null.</param>
+    public Vehicle Buy(FacilityId depotId, TypeId modelId, TypeId? bodyId = null)
     {
         if (!_map.Facilities.TryGet(depotId, out var depot))
             throw new FleetException("Депо не найдено.");
@@ -57,10 +70,21 @@ public sealed class TransportState
             throw new FleetException($"{model.Title} не ездит по этой сети.");
         if (model.Role == UnitRole.Wagon)
             throw new FleetException("Вагон добавляется к уже купленному локомотиву.");
+        if (!IsAvailable(model))
+            throw new FleetException($"{model.Title} появится в {model.AvailableFromYear} году.");
 
+        TruckBody? body = null;
+        if (model.Bodies is { Count: > 0 } bodies)
+        {
+            if (bodyId is not { } id || !bodies.Contains(id))
+                throw new FleetException($"Выберите кузов для {model.Title}.");
+            body = Catalog.Body(id);
+        }
+
+        var title = body is null ? model.Title : $"{model.Title} {body.Title}";
         var number = _counters[model.Id] = _counters.GetValueOrDefault(model.Id) + 1;
-        var vehicle = new Vehicle(new VehicleId(_nextId++), $"{model.Title} №{number}", network, depot);
-        vehicle.AddUnit(model);
+        var vehicle = new Vehicle(new VehicleId(_nextId++), $"{title} №{number}", network, depot);
+        vehicle.AddUnit(model, body);
         _vehicles.Add(vehicle.Id.Value, vehicle);
         return vehicle;
     }
@@ -74,6 +98,11 @@ public sealed class TransportState
             throw new FleetException("Состав можно менять только в депо.");
         if (!vehicle.Network.Trains || model.Role != UnitRole.Wagon || model.Network != vehicle.Network.Network)
             throw new FleetException($"{model.Title} нельзя прицепить к «{vehicle.Name}».");
+        if (!IsAvailable(model))
+            throw new FleetException($"{model.Title} появится в {model.AvailableFromYear} году.");
+        var limit = vehicle.Units.Where(u => u.Model.Role == UnitRole.Locomotive).Sum(u => u.Model.MaxWagons);
+        if (limit > 0 && vehicle.WagonCount >= limit)
+            throw new FleetException($"Локомотив тянет не больше {limit} вагонов.");
         vehicle.AddUnit(model);
     }
 

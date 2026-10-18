@@ -116,8 +116,18 @@ public partial class FleetPanel : PanelContainer
         _body.AddChild(header);
 
         var buy = new HFlowContainer();
-        foreach (var model in _transport.Catalog.Models.Where(m => m.Network == network.Network && m.Role != UnitRole.Wagon))
-            buy.AddChild(MakeButton($"Купить: {model.Title}", () => Act(() => _selected = _transport.Buy(depot.Id, model.Id).Id)));
+        // Только модели, которые продаются в текущем году (docs/14); у грузовиков — по кнопке на каждый кузов.
+        foreach (var model in _transport.ForSale(network.Network).Where(m => m.Role != UnitRole.Wagon))
+        {
+            if (model.Bodies is { Count: > 0 } bodies)
+            {
+                foreach (var body in bodies.Select(_transport.Catalog.Body))
+                    buy.AddChild(MakeButton($"Купить: {model.Title} {body.Title}",
+                        () => Act(() => _selected = _transport.Buy(depot.Id, model.Id, body.Id).Id)));
+            }
+            else
+                buy.AddChild(MakeButton($"Купить: {model.Title}", () => Act(() => _selected = _transport.Buy(depot.Id, model.Id).Id)));
+        }
         _body.AddChild(buy);
 
         var vehicles = _transport.InDepot(depot.Id).ToList();
@@ -154,7 +164,7 @@ public partial class FleetPanel : PanelContainer
         if (vehicle.Network.Trains && vehicle.State == VehicleState.InDepot)
         {
             var wagons = new HFlowContainer();
-            foreach (var model in _transport.Catalog.Models.Where(m => m.Network == vehicle.Network.Network && m.Role == UnitRole.Wagon))
+            foreach (var model in _transport.ForSale(vehicle.Network.Network).Where(m => m.Role == UnitRole.Wagon))
                 wagons.AddChild(MakeButton($"+ {model.Title}", () => Act(() => _transport.AddWagon(vehicle.Id, model.Id))));
             wagons.AddChild(MakeButton("− вагон", () => Act(() => _transport.RemoveWagon(vehicle.Id))));
             _body.AddChild(wagons);

@@ -26,6 +26,36 @@ public partial class Hud : CanvasLayer
         _title.Text = $"{mapName}\nWASD / стрелки, правая кнопка — сдвиг · колесо — масштаб · F — вся карта\n"
                       + "Пробел — пауза · 1–4 — скорость · . — один час";
 
+    private Label? _news;
+    private double _newsLeft;
+
+    /// <summary>Показать сообщение вверху экрана на некоторое время.</summary>
+    public void ShowNews(string text)
+    {
+        if (_news is null)
+        {
+            _news = MakeLabel(16);
+            _news.AddThemeColorOverride("font_color", new Color(1f, 0.9f, 0.6f));
+            _news.AddThemeColorOverride("font_outline_color", new Color(0, 0, 0, 0.9f));
+            _news.AddThemeConstantOverride("outline_size", 6);
+            AddChild(_news);
+        }
+        _news.Text = text;
+        _news.Visible = true;
+        _newsLeft = 15;
+    }
+
+    public override void _Process(double delta)
+    {
+        if (_news is null || !_news.Visible)
+            return;
+        _news.ResetSize();
+        _news.Position = new Vector2((GetViewport().GetVisibleRect().Size.X - _news.Size.X) / 2f, 108);
+        _newsLeft -= delta;
+        if (_newsLeft <= 0)
+            _news.Visible = false;
+    }
+
     /// <summary>Добавить на экран готовый элемент интерфейса (например, панель времени).</summary>
     public void AddWidget(Control widget) => AddChild(widget);
 

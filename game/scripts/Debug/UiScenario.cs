@@ -92,7 +92,7 @@ public partial class UiScenario : Node
         ClickCell(P(180, 152));
         foreach (var mine in new[] { P(203, 48), P(65, 50) })
         {
-            ClickButton("Купить: Грузовой локомотив");
+            ClickButton("Купить: Паровоз ФД");
             for (var i = 0; i < 11; i++)
                 ClickButton("+ Полувагон");
             ClickButton("Выбрать А");
@@ -108,7 +108,7 @@ public partial class UiScenario : Node
         ClickCell(P(147, 161));
         for (var i = 0; i < 3; i++)
         {
-            ClickButton("Купить: Грузовик");
+            ClickButton("Купить: МАЗ-200 бортовой");
             ClickButton("Выбрать А");
             ClickCell(P(149, 159));
             ClickButton("Выбрать Б");

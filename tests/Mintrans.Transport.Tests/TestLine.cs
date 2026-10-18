@@ -119,13 +119,15 @@ internal sealed class TestLine
             new VehicleModel("gondola", "Полувагон", UnitRole.Wagon, "rail", 0, T(60), [new TypeId("coal"), new TypeId("iron_ore")], 1),
             new VehicleModel("flatcar", "Платформа", UnitRole.Wagon, "rail", 0, T(50), [new TypeId("steel")], 1),
             new VehicleModel("truck", "Грузовик", UnitRole.Truck, "road", 4, T(20), [new TypeId("coal"), new TypeId("iron_ore"), new TypeId("steel")], 1),
+            .. EraTests.ExtraModels(),
         ],
         [
             new NetworkTransport("rail", "rail_depot", [new TypeId("rail_station")], [], 2, true),
             new NetworkTransport("road", "truck_garage", [new TypeId("truck_station")], [new TypeId("city_truck_stop")], 1, false),
         ],
         new MaintenanceRules(wearPerCell, serviceAt, serviceHours),
-        new LoadingRules(24));
+        new LoadingRules(24),
+        EraTests.Bodies());
 
     private static ConstructionCatalog ConstructionCatalog() => new(
         [

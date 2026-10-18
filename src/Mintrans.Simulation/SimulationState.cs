@@ -11,13 +11,23 @@ public sealed class SimulationState
 {
     private readonly Dictionary<Type, object> _modules = new();
 
-    public SimulationState(WorldMap map, GameTime start = default)
+    public SimulationState(WorldMap map, GameTime start = default, GameCalendar? calendar = null)
     {
         Map = map;
         Time = start;
+        Calendar = calendar ?? GameCalendar.Default;
     }
 
     public WorldMap Map { get; }
+
+    /// <summary>Календарь кампании: дата старта и перевод часов в даты (docs/14).</summary>
+    public GameCalendar Calendar { get; }
+
+    /// <summary>Сообщения игроку: новые модели техники, события республики.</summary>
+    public GameLog Log { get; } = new();
+
+    /// <summary>Текущий игровой год.</summary>
+    public int Year => Calendar.Year(Time);
 
     /// <summary>Время к началу текущего шага; после шага увеличивается на час.</summary>
     public GameTime Time { get; internal set; }

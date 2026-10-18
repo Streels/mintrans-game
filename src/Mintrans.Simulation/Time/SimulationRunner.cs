@@ -4,9 +4,12 @@ namespace Mintrans.Simulation.Time;
 /// <param name="SecondsPerHourAt1x">Сколько реальных секунд длится игровой час на скорости 1×.</param>
 /// <param name="Speeds">Доступные множители скорости, например 1, 2, 4, 8.</param>
 /// <param name="MaxStepsPerFrame">Предел шагов за один кадр: если компьютер не успевает, игра замедляется, а не зависает.</param>
-public sealed record SimulationSettings(double SecondsPerHourAt1x, IReadOnlyList<int> Speeds, int MaxStepsPerFrame)
+/// <param name="StartDate">Дата начала кампании (docs/14: 1 января 1950 года).</param>
+public sealed record SimulationSettings(double SecondsPerHourAt1x, IReadOnlyList<int> Speeds, int MaxStepsPerFrame, DateTime StartDate = default)
 {
-    public static SimulationSettings Default { get; } = new(2.0, [1, 2, 4, 8], 32);
+    public static SimulationSettings Default { get; } = new(2.0, [1, 2, 4, 8], 32, new DateTime(1950, 1, 1));
+
+    public GameCalendar Calendar => StartDate == default ? GameCalendar.Default : new GameCalendar(StartDate);
 
     public void Validate()
     {

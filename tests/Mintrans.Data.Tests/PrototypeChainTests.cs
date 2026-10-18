@@ -60,7 +60,7 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
             transport.Stops.All.First(s => s.Network == network && s.Owner == map.Sites.GetByKey(key).Id).Ref;
         Vehicle Train()
         {
-            var train = transport.Buy(depot.Built!.Id, "freight_locomotive");
+            var train = transport.Buy(depot.Built!.Id, "steam_fd");
             for (var i = 0; i < 11; i++)
                 transport.AddWagon(train.Id, "gondola");
             return train;
@@ -71,7 +71,7 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         transport.AssignRoute(oreTrain.Id, Stop("iron_mine", "rail"), Stop("steel_plant", "rail"));
         for (var i = 0; i < 3; i++)
         {
-            var truck = transport.Buy(garage.Built!.Id, "truck");
+            var truck = transport.Buy(garage.Built!.Id, "maz_200", "flatbed");
             transport.AssignRoute(truck.Id, Stop("steel_plant", "road"), Stop("city", "road"));
         }
 

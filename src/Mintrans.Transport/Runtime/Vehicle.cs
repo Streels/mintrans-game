@@ -43,13 +43,20 @@ public enum Leg
 }
 
 /// <summary>Одна единица в составе: локомотив, вагон или грузовик, с её грузом.</summary>
-public sealed class VehicleUnit(VehicleModel model)
+public sealed class VehicleUnit(VehicleModel model, TruckBody? body = null)
 {
     public VehicleModel Model { get; } = model;
+
+    /// <summary>Кузов грузовика или null.</summary>
+    public TruckBody? Body { get; } = body;
+
+    /// <summary>Какие грузы можно везти: по кузову грузовика или по модели вагона.</summary>
+    public IReadOnlyList<TypeId> Carries => Body?.Cargo ?? Model.Cargo;
+
     public TypeId? CargoType { get; internal set; }
     public Mass Cargo { get; internal set; }
     public Mass Free => Model.Capacity - Cargo;
-    public bool CanCarry(TypeId resource) => Model.Cargo.Contains(resource) && (CargoType is null || CargoType == resource);
+    public bool CanCarry(TypeId resource) => Carries.Contains(resource) && (CargoType is null || CargoType == resource);
 }
 
 /// <summary>
@@ -120,7 +127,10 @@ public sealed class Vehicle
     public Mass CargoOf(TypeId resource) =>
         _units.Where(u => u.CargoType == resource).Aggregate(Mass.Zero, (sum, u) => sum + u.Cargo);
 
-    internal void AddUnit(VehicleModel model) => _units.Add(new VehicleUnit(model));
+    internal void AddUnit(VehicleModel model, TruckBody? body = null) => _units.Add(new VehicleUnit(model, body));
+
+    /// <summary>Сколько вагонов в составе.</summary>
+    public int WagonCount => _units.Count(u => u.Model.Role == UnitRole.Wagon);
 
     internal void RemoveLastUnit() => _units.RemoveAt(_units.Count - 1);
 

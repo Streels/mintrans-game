@@ -16,6 +16,9 @@ public enum UnitRole
 /// Скорость — клеток за игровой час; вместимость и допустимые грузы — у вагонов и грузовиков.
 /// </summary>
 /// <param name="Length">Длина в условных единицах; сколько единиц в клетке, задаёт <see cref="NetworkTransport.UnitsPerCell"/>.</param>
+/// <param name="AvailableFromYear">С какого игрового года модель продаётся (docs/14); 0 — всегда.</param>
+/// <param name="MaxWagons">Для локомотива — сколько вагонов он может тянуть (упрощённая сила тяги).</param>
+/// <param name="Bodies">Для грузовика — какие кузова можно выбрать при покупке; кузов задаёт допустимые грузы (docs/11а).</param>
 public sealed record VehicleModel(
     TypeId Id,
     string Title,
@@ -24,7 +27,13 @@ public sealed record VehicleModel(
     double Speed,
     Mass Capacity,
     IReadOnlyList<TypeId> Cargo,
-    int Length);
+    int Length,
+    int AvailableFromYear = 0,
+    int MaxWagons = 0,
+    IReadOnlyList<TypeId>? Bodies = null);
+
+/// <summary>Кузов грузовика (docs/11а): бортовой, самосвал… Определяет, какие грузы машина возит.</summary>
+public sealed record TruckBody(TypeId Id, string Title, IReadOnlyList<TypeId> Cargo);
 
 /// <summary>Как устроены перевозки по одной сети: где покупают технику и где грузят.</summary>
 /// <param name="Depot">Вид сооружения, в котором покупают и обслуживают технику (депо, автогараж).</param>
@@ -54,13 +63,17 @@ public sealed class TransportCatalog
     private readonly Dictionary<TypeId, VehicleModel> _models;
     private readonly Dictionary<TypeId, NetworkTransport> _networks;
 
+    private readonly Dictionary<TypeId, TruckBody> _bodies;
+
     public TransportCatalog(
         IEnumerable<VehicleModel> models,
         IEnumerable<NetworkTransport> networks,
         MaintenanceRules maintenance,
-        LoadingRules loading)
+        LoadingRules loading,
+        IEnumerable<TruckBody>? bodies = null)
     {
         _models = models.ToDictionary(m => m.Id);
+        _bodies = (bodies ?? []).ToDictionary(b => b.Id);
         _networks = networks.ToDictionary(n => n.Network);
         Maintenance = maintenance;
         Loading = loading;
@@ -68,8 +81,21 @@ public sealed class TransportCatalog
         {
             if (!_networks.ContainsKey(model.Network))
                 throw new ArgumentException($"Модель «{model.Id}» ездит по сети «{model.Network}», для которой нет правил перевозок.");
+            foreach (var body in model.Bodies ?? [])
+            {
+                if (!_bodies.ContainsKey(body))
+                    throw new ArgumentException($"У модели «{model.Id}» неизвестный кузов «{body}».");
+            }
         }
     }
+
+    public IReadOnlyCollection<TruckBody> Bodies => _bodies.Values;
+
+    public TruckBody Body(TypeId id) =>
+        _bodies.TryGetValue(id, out var body) ? body : throw new KeyNotFoundException($"Нет кузова «{id}».");
+
+    /// <summary>Какие модели продаются в этом году.</summary>
+    public IEnumerable<VehicleModel> AvailableIn(int year) => Models.Where(m => m.AvailableFromYear <= year);
 
     public IReadOnlyCollection<VehicleModel> Models => _models.Values;
     public IReadOnlyCollection<NetworkTransport> Networks => _networks.Values;
