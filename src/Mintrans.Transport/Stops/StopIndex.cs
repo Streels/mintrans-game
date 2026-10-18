@@ -18,7 +18,8 @@ public readonly record struct StopRef(string Value)
 /// Пункт погрузки и выгрузки: клетки на сети и объект, чей склад он обслуживает
 /// (шахта, завод — для своих станций; город — для городского пункта).
 /// </summary>
-public sealed record Stop(StopRef Ref, string Name, TypeId Network, GridRect Area, SiteId Owner)
+/// <param name="Slots">Сколько единиц техники пункт обслуживает одновременно.</param>
+public sealed record Stop(StopRef Ref, string Name, TypeId Network, GridRect Area, SiteId Owner, int Slots = 1)
 {
     /// <summary>Длина пункта в клетках — по ней проверяется, помещается ли состав.</summary>
     public int Length => Math.Max(Area.Width, Area.Height);
@@ -61,14 +62,15 @@ public sealed class StopIndex(WorldMap map, TransportCatalog catalog)
                 foreach (var part in site.Parts.Where(p => network.StopParts.Contains(p.Kind)))
                 {
                     var reference = new StopRef($"part:{site.Key}:{part.Area.X},{part.Area.Y}");
-                    _stops.Add(new Stop(reference, site.Name, network.Network, part.Area, site.Id));
+                    _stops.Add(new Stop(reference, site.Name, network.Network, part.Area, site.Id, network.SlotsOf(part.Kind)));
                 }
             }
             foreach (var facility in map.Facilities.All.Where(f => network.StopFacilities.Contains(f.Kind)))
             {
                 var owner = map.Sites.All.FirstOrDefault(s => s.Id == facility.Owner);
                 var name = owner is null ? facility.Name : $"{owner.Name} ({facility.Name})";
-                _stops.Add(new Stop(new StopRef($"facility:{facility.Id.Value}"), name, network.Network, facility.Area, facility.Owner));
+                _stops.Add(new Stop(new StopRef($"facility:{facility.Id.Value}"), name, network.Network, facility.Area, facility.Owner,
+                    network.SlotsOf(facility.Kind)));
             }
         }
         _builtRevision = revision;

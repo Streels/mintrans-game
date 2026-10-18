@@ -40,13 +40,22 @@ public sealed record TruckBody(TypeId Id, string Title, IReadOnlyList<TypeId> Ca
 /// <param name="StopParts">Части площадок предприятий, которые служат пунктами погрузки (станции).</param>
 /// <param name="StopFacilities">Отдельные сооружения-пункты (городской грузовой пункт).</param>
 /// <param name="Trains">Техника собирается в составы из локомотива и вагонов.</param>
+/// <param name="StopSlots">Сколько единиц техники пункт данного вида обслуживает одновременно (docs/12: 2–10); остальные ждут.</param>
+/// <param name="WagonsPerStopCell">Сколько вагонов обслуживает одна клетка платформы (docs/12: два).</param>
+/// <param name="ShuntHours">Сколько часов занимает перестановка состава между частями, если он длиннее платформы.</param>
 public sealed record NetworkTransport(
     TypeId Network,
     TypeId Depot,
     IReadOnlyList<TypeId> StopParts,
     IReadOnlyList<TypeId> StopFacilities,
     int UnitsPerCell,
-    bool Trains);
+    bool Trains,
+    IReadOnlyDictionary<TypeId, int>? StopSlots = null,
+    int WagonsPerStopCell = 2,
+    int ShuntHours = 0)
+{
+    public int SlotsOf(TypeId stopKind) => StopSlots?.GetValueOrDefault(stopKind, 1) ?? 1;
+}
 
 /// <summary>Износ и обслуживание (docs/11). Числа временные.</summary>
 /// <param name="WearPerCell">Прирост износа за клетку пути (1 = 100 %).</param>

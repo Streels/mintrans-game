@@ -19,7 +19,12 @@ public static class TransportLoader
             Ids(node.Get("stopParts")),
             Ids(node.Get("stopFacilities")),
             node.Int("unitsPerCell"),
-            node.Get("trains").Element.GetBoolean())).ToList();
+            node.Get("trains").Element.GetBoolean(),
+            node.Find("stopSlots") is { } slots
+                ? slots.Element.EnumerateObject().ToDictionary(p => new TypeId(p.Name), p => new JsonNode(p.Value, $"{slots.Location}.{p.Name}").AsInt())
+                : null,
+            node.Int("wagonsPerStopCell", 2),
+            node.Int("shuntHours", 0))).ToList();
 
         var bodies = root.Find("bodies")?.Items().Select(node =>
         {

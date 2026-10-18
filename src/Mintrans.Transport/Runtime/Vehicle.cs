@@ -112,6 +112,35 @@ public sealed class Vehicle
     /// <summary>Сколько часов техника находится в текущем состоянии.</summary>
     public int HoursInState { get; internal set; }
 
+    /// <summary>Номер в порядке прибытия к пункту: кто раньше приехал, того раньше обслуживают.</summary>
+    public long QueueTicket { get; internal set; }
+
+    /// <summary>В этот час ждала своей очереди: пункт уже обработал столько, сколько успевает.</summary>
+    public bool Queued { get; internal set; }
+
+    /// <summary>Какая часть состава сейчас стоит у платформы (с нуля), если состав длиннее платформы.</summary>
+    public int PartIndex { get; internal set; }
+
+    /// <summary>Сколько часов ещё длится перестановка к следующей части.</summary>
+    public int ShuntHoursLeft { get; internal set; }
+
+    /// <summary>Единицы, которые везут груз: вагоны поезда или сам грузовик.</summary>
+    public IReadOnlyList<VehicleUnit> CargoUnits => _units.Where(u => u.Model.Capacity > Mass.Zero).ToList();
+
+    /// <summary>На сколько частей делится состав у платформы длиной <paramref name="stopLength"/> клеток.</summary>
+    public int Parts(int stopLength) => Network.Trains
+        ? Math.Max(1, (int)Math.Ceiling(CargoUnits.Count / (double)Math.Max(1, stopLength * Network.WagonsPerStopCell)))
+        : 1;
+
+    /// <summary>Вагоны текущей части у платформы.</summary>
+    public IReadOnlyList<VehicleUnit> PartUnits(int stopLength)
+    {
+        if (!Network.Trains)
+            return CargoUnits;
+        var perPart = Math.Max(1, stopLength * Network.WagonsPerStopCell);
+        return CargoUnits.Skip(PartIndex * perPart).Take(perPart).ToList();
+    }
+
     /// <summary>Пояснение для игрока: почему стоит, чего ждёт.</summary>
     public string Reason { get; internal set; } = "";
 
@@ -148,6 +177,7 @@ public sealed class Vehicle
 
     internal void SetState(VehicleState state, string reason = "")
     {
+        Queued = false;
         if (state != State)
             HoursInState = 0;
         State = state;

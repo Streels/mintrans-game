@@ -6,10 +6,15 @@
 // length — единиц длины (2 единицы на клетку пути), maxWagons — сколько вагонов тянет локомотив.
 {
   "networks": [
+    // stopSlots — сколько единиц техники пункт обслуживает одновременно (docs/12: от 2 до 10), остальные ждут.
+    // wagonsPerStopCell — одна клетка платформы обслуживает два вагона; состав длиннее платформы
+    // обрабатывается по частям, перестановка между частями занимает shuntHours часов (временное значение).
     { "network": "rail", "depot": "rail_depot", "stopParts": ["rail_station"], "stopFacilities": [],
-      "unitsPerCell": 2, "trains": true },
+      "unitsPerCell": 2, "trains": true,
+      "stopSlots": { "rail_station": 2 }, "wagonsPerStopCell": 2, "shuntHours": 2 },
     { "network": "road", "depot": "truck_garage", "stopParts": ["truck_station"], "stopFacilities": ["city_truck_stop"],
-      "unitsPerCell": 1, "trains": false }
+      "unitsPerCell": 1, "trains": false,
+      "stopSlots": { "truck_station": 4, "city_truck_stop": 4 } }
   ],
 
   // Кузова грузовиков (docs/11a): кузов задаёт допустимые грузы.

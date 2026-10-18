@@ -21,6 +21,9 @@ public sealed class TransportState
     private readonly WorldMap _map;
     private readonly Dictionary<TypeId, int> _counters = new();
     private int _nextId = 1;
+    private long _nextTicket = 1;
+
+    internal long NextTicket() => _nextTicket++;
 
     private readonly Func<int> _year;
 
@@ -51,6 +54,12 @@ public sealed class TransportState
         _vehicles.TryGetValue(id.Value, out var vehicle) ? vehicle : throw new FleetException($"Нет техники {id}.");
 
     public IEnumerable<Vehicle> InDepot(FacilityId depot) => Vehicles.Where(v => v.Depot == depot);
+
+    /// <summary>Техника, которая сейчас грузится или разгружается в пункте, в порядке прибытия.</summary>
+    public IReadOnlyList<Vehicle> AtStop(StopRef stop) =>
+        Vehicles.Where(v => (v.State == VehicleState.Loading && v.A == stop) || (v.State == VehicleState.Unloading && v.B == stop))
+            .OrderBy(v => v.QueueTicket)
+            .ToList();
 
     /// <summary>Сколько груза сейчас в пути (в технике) — для проверки сохранения груза.</summary>
     public Mass InTransit(TypeId resource) => Vehicles.Aggregate(Mass.Zero, (sum, v) => sum + v.CargoOf(resource));
@@ -132,8 +141,6 @@ public sealed class TransportState
                 problems.Add("Пункты А и Б совпадают.");
             if (stopA.Network != vehicle.Network.Network || stopB.Network != vehicle.Network.Network)
                 problems.Add("Пункты должны быть на сети этой техники.");
-            if (vehicle.Network.Trains && vehicle.LengthCells > Math.Min(stopA.Length, stopB.Length))
-                problems.Add($"Состав ({vehicle.LengthCells} кл.) длиннее станции ({Math.Min(stopA.Length, stopB.Length)} кл.).");
         }
         if (vehicle.Speed <= 0)
             problems.Add("Нет локомотива.");

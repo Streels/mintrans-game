@@ -39,12 +39,52 @@ public class TransportTests
     }
 
     [Fact]
-    public void Train_longer_than_station_is_refused()
+    public void Train_longer_than_platform_is_handled_in_parts_with_shunting()
     {
+        // docs/12: клетка платформы обслуживает два вагона; длинный состав грузится частями с перестановкой.
         var line = new TestLine();
-        var train = line.Train(gondolas: 16); // 17 единиц = 9 клеток, станция — 4
-        var problems = line.Transport.CheckRoute(train.Id, line.Stop("coal_mine", "rail"), line.Stop("steel_plant", "rail"));
-        Assert.Contains(problems, p => p.Contains("длиннее станции"));
+        line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
+        var train = line.Train(gondolas: 10); // платформа 4 клетки = 8 вагонов, значит две части
+        var mine = line.Stop("coal_mine", "rail");
+        Assert.Empty(line.Transport.CheckRoute(train.Id, mine, line.Stop("steel_plant", "rail")));
+        line.Transport.AssignRoute(train.Id, mine, line.Stop("steel_plant", "rail"));
+
+        var reasons = new List<string>();
+        var loadingHours = 0;
+        for (var hour = 0; hour < 24 * 10 && train.Leg != Leg.ToB; hour++)
+        {
+            line.RunHours(1);
+            if (train.State == VehicleState.Loading)
+            {
+                loadingHours++;
+                reasons.Add(train.Reason);
+            }
+        }
+        Assert.Equal(T(600), train.Cargo);
+        Assert.Contains(reasons, r => r.Contains("часть 1 из 2"));
+        Assert.Contains(reasons, r => r.Contains("перестановка"));
+        // 600 т при 100 т/ч — шесть часов работы плюс два часа перестановки.
+        Assert.True(loadingHours >= 8, $"погрузка заняла {loadingHours} ч");
+    }
+
+    [Fact]
+    public void Vehicles_beyond_station_slots_wait_for_a_free_place()
+    {
+        // docs/12: тип станции задаёт число мест; прибывшие сверх них ждут.
+        var line = new TestLine();
+        line.Economy.Seed(line.Site("steel_plant").Site, "steel", T(500));
+        var trucks = Enumerable.Range(0, 3).Select(_ => line.Transport.Buy(line.Garage.Id, "truck")).ToList();
+        foreach (var truck in trucks)
+            line.Transport.AssignRoute(truck.Id, line.Stop("steel_plant", "road"), line.Stop("city", "road"));
+
+        var sawWaiting = false;
+        for (var hour = 0; hour < 48 && !sawWaiting; hour++)
+        {
+            line.RunHours(1);
+            sawWaiting = trucks.Any(t => t.State == VehicleState.Loading && t.Reason.Contains("ждёт места у пункта"));
+        }
+        Assert.True(sawWaiting);
+        line.AssertConserved();
     }
 
     [Fact]
@@ -77,6 +117,43 @@ public class TransportTests
         Assert.Equal(T(180), train.Cargo);
         line.RunHours(1);
         Assert.Equal(Leg.ToB, train.Leg);
+    }
+
+    [Fact]
+    public void Station_serves_vehicles_in_arrival_order_and_others_wait_in_queue()
+    {
+        // docs/10, docs/12: больше техники, чем пункт успевает обработать, — очередь в порядке прибытия.
+        var line = new TestLine();
+        line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
+        var early = line.Train(gondolas: 5); // 300 т — грузится три часа при 100 т/ч
+        var late = line.Train(gondolas: 5);
+        var mine = line.Stop("coal_mine", "rail");
+        var plant = line.Stop("steel_plant", "rail");
+        // Второй купленный поезд выезжает на час раньше — значит, и обслуживаться должен первым.
+        line.Transport.AssignRoute(late.Id, mine, plant);
+        line.RunHours(1);
+        line.Transport.AssignRoute(early.Id, mine, plant);
+
+        RunUntil(line, () => early.State == VehicleState.Loading && early.Queued);
+        Assert.Equal(VehicleState.Loading, late.State);
+        Assert.True(late.Cargo > Economy.Mass.Zero);
+        Assert.Equal(Economy.Mass.Zero, early.Cargo);
+        Assert.Contains("в очереди на погрузку (впереди: 1)", early.Reason);
+        Assert.Equal([late.Id, early.Id], line.Transport.AtStop(mine).Select(v => v.Id));
+
+        RunUntil(line, () => late.State != VehicleState.Loading);
+        Assert.Equal(T(300), late.Cargo);
+        RunUntil(line, () => early.State != VehicleState.Loading);
+        Assert.Equal(T(300), early.Cargo);
+        line.AssertConserved();
+    }
+
+    /// <summary>Крутить часы, пока условие не выполнится; не дольше двух игровых недель.</summary>
+    private static void RunUntil(TestLine line, Func<bool> done)
+    {
+        for (var hour = 0; hour < 24 * 14 && !done(); hour++)
+            line.RunHours(1);
+        Assert.True(done(), "условие не выполнилось за две игровые недели");
     }
 
     [Fact]

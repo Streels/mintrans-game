@@ -122,8 +122,10 @@ internal sealed class TestLine
             .. EraTests.ExtraModels(),
         ],
         [
-            new NetworkTransport("rail", "rail_depot", [new TypeId("rail_station")], [], 2, true),
-            new NetworkTransport("road", "truck_garage", [new TypeId("truck_station")], [new TypeId("city_truck_stop")], 1, false),
+            new NetworkTransport("rail", "rail_depot", [new TypeId("rail_station")], [], 2, true,
+                new Dictionary<TypeId, int> { ["rail_station"] = 2 }, WagonsPerStopCell: 2, ShuntHours: 2),
+            new NetworkTransport("road", "truck_garage", [new TypeId("truck_station")], [new TypeId("city_truck_stop")], 1, false,
+                new Dictionary<TypeId, int> { ["truck_station"] = 2, ["city_truck_stop"] = 2 }),
         ],
         new MaintenanceRules(wearPerCell, serviceAt, serviceHours),
         new LoadingRules(24),

@@ -10,6 +10,7 @@ using Mintrans.Game.Tools;
 using Mintrans.Game.UI;
 using Mintrans.Game.View;
 using Mintrans.Simulation;
+using Mintrans.Transport.Runtime;
 using Mintrans.Transport.Systems;
 using Mintrans.World;
 
@@ -33,6 +34,7 @@ public partial class Main : Node2D
     private EconomyState? _economy;
     private FleetPanel _fleet = null!;
     private GameSimulation? _simulation;
+    private TransportState? _transport;
 
     public override void _Ready()
     {
@@ -104,7 +106,7 @@ public partial class Main : Node2D
             _hud.ShowNews($"{simulation.State.Calendar.FormatDate(message.Time)}: {message.Text}");
         _economy = EconomyModule.Install(simulation, content.Economy);
         EconomyLoader.SeedStocks(_economy, description);
-        var transport = TransportModule.Install(simulation, content.Transport);
+        var transport = _transport = TransportModule.Install(simulation, content.Transport);
 
         var labels = new SiteLabels { Name = "SiteLabels" };
         AddChild(labels);
@@ -126,14 +128,13 @@ public partial class Main : Node2D
         _hud.AddWidget(_fleet);
         _fleet.Init(transport, map, _names);
 
-        // Каждый час обновляется панель депо, раз в сутки — подписи объектов и панель клетки.
+        // Каждый час обновляются панель депо и панель клетки (очереди), раз в сутки — подписи объектов.
         simulation.StepCompleted += time =>
         {
             _fleet.Refresh();
-            if (!time.IsStartOfDay)
-                return;
-            labels.Refresh();
             RefreshCellInfo();
+            if (time.IsStartOfDay)
+                labels.Refresh();
         };
         if (args.SkipHours > 0)
             simulation.Run(args.SkipHours);
@@ -192,6 +193,15 @@ public partial class Main : Node2D
         var lines = CellDescriber.Describe(_map, cell, _names).ToList();
         if (_map.Sites.At(cell) is { } site && _economy?.At(site.Id) is { } economic)
             lines.AddRange(EconomyText.Details(economic, _names));
+        // Пункт погрузки: сколько техники у него и сколько ждёт очереди (docs/10, docs/12).
+        foreach (var stop in _transport?.Stops.All.Where(s => s.Contains(cell)) ?? [])
+        {
+            var here = _transport!.AtStop(stop.Ref);
+            var queued = here.Count(v => v.Queued);
+            lines.Add(here.Count == 0
+                ? $"Пункт ({_names[stop.Network.Value]}): техники нет"
+                : $"Пункт ({_names[stop.Network.Value]}): техники {here.Count}, в очереди {queued}");
+        }
         _hud.SetCellInfo(lines);
     }
 
