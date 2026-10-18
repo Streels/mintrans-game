@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\Mintrans.Core\Mintrans.Core.csproj" />
+    <ProjectReference Include="..\Mintrans.World\Mintrans.World.csproj" />
+    <ProjectReference Include="..\Mintrans.Simulation\Mintrans.Simulation.csproj" />
+  </ItemGroup>
+</Project>

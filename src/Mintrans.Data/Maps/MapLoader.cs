@@ -52,10 +52,14 @@ public sealed class MapLoader
             _terrainOperations.Apply(step, map);
         foreach (var step in root.Find("networks")?.Items() ?? [])
             _networkOperations.Apply(step, map);
+        var siteData = new Dictionary<string, JsonNode>();
         foreach (var node in root.Find("sites")?.Items() ?? [])
+        {
             PlaceSite(node, map);
+            siteData[node.String("key")] = node;
+        }
 
-        return new MapDescription(root.String("id"), root.String("name"), map);
+        return new MapDescription(root.String("id"), root.String("name"), map, siteData);
     }
 
     /// <summary>
@@ -85,5 +89,9 @@ public sealed class MapLoader
     }
 }
 
-/// <summary>Загруженная карта и её описание.</summary>
-public sealed record MapDescription(string Id, string Name, WorldMap Map);
+/// <summary>
+/// Загруженная карта и её описание. <paramref name="SiteData"/> — исходные записи объектов из файла:
+/// другие модули читают из них свои поля (например, экономика — начальные запасы "stock"),
+/// и загрузчику карты не нужно о них знать.
+/// </summary>
+public sealed record MapDescription(string Id, string Name, WorldMap Map, IReadOnlyDictionary<string, JsonNode> SiteData);

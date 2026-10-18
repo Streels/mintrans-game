@@ -56,9 +56,11 @@
   ],
 
   "sites": [
-    { "key": "city", "type": "city", "name": "Город", "rect": [30, 180, 24, 24] },
+    // stock — начальные запасы сценария, т (docs/03). Без транспорта их хватит заводу на 3 дня, городу — на 2.
+    { "key": "city", "type": "city", "name": "Город", "rect": [30, 180, 24, 24], "stock": { "steel": 300 } },
     { "key": "coal_mine", "type": "coal_mine", "name": "Угольная шахта", "rect": [200, 40, 8, 8] },
     { "key": "iron_mine", "type": "iron_mine", "name": "Железорудная шахта", "rect": [62, 42, 8, 8] },
-    { "key": "steel_plant", "type": "steel_plant", "name": "Металлургический завод", "rect": [150, 150, 14, 12] }
+    { "key": "steel_plant", "type": "steel_plant", "name": "Металлургический завод", "rect": [150, 150, 14, 12],
+      "stock": { "coal": 600, "iron_ore": 900 } }
   ]
 }

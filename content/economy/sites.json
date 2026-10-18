@@ -1,0 +1,46 @@
+// Экономика объектов по их типу (docs/04, docs/06). Все числа — ВРЕМЕННЫЕ, для проверки цепочки:
+// баланс назначим после первых прогонов.
+//   storage         — вместимость склада по ресурсам, т;
+//   handlingPerHour — скорость погрузки и разгрузки, т/час (пригодится транспорту);
+//   processes       — что объект делает раз в сутки: за один цикл списывает inputs и выпускает outputs (т),
+//                     не больше cyclesPerDay циклов; phase: production (добыча, переработка) или consumption (спрос).
+{
+  "sites": [
+    {
+      "type": "coal_mine",
+      "storage": { "coal": 3000 },
+      "handlingPerHour": 150,
+      "processes": [
+        { "id": "mining", "phase": "production", "inputs": {}, "outputs": { "coal": 1 }, "cyclesPerDay": 300 }
+      ]
+    },
+    {
+      "type": "iron_mine",
+      "storage": { "iron_ore": 4000 },
+      "handlingPerHour": 150,
+      "processes": [
+        { "id": "mining", "phase": "production", "inputs": {}, "outputs": { "iron_ore": 1 }, "cyclesPerDay": 400 }
+      ]
+    },
+    {
+      "type": "steel_plant",
+      "storage": { "coal": 2000, "iron_ore": 3000, "steel": 2000 },
+      "handlingPerHour": 200,
+      "processes": [
+        // 1 т стали из 1 т угля и 1,5 т руды, до 200 т стали в сутки.
+        { "id": "smelting", "phase": "production",
+          "inputs": { "coal": 1, "iron_ore": 1.5 }, "outputs": { "steel": 1 }, "cyclesPerDay": 200 }
+      ]
+    },
+    {
+      "type": "city",
+      "storage": { "steel": 1500 },
+      "handlingPerHour": 100,
+      "processes": [
+        // Временный сценарный спрос прототипа (docs/01): не одна из трёх городских потребностей полной игры.
+        { "id": "scenario_steel_demand", "phase": "consumption",
+          "inputs": { "steel": 1 }, "outputs": {}, "cyclesPerDay": 150 }
+      ]
+    }
+  ]
+}

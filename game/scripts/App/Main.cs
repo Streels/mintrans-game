@@ -1,6 +1,9 @@
 using Godot;
 using Mintrans.Construction;
 using Mintrans.Data;
+using Mintrans.Data.Definitions;
+using Mintrans.Economy.Runtime;
+using Mintrans.Economy.Systems;
 using Mintrans.Game.Debug;
 using Mintrans.Game.Input;
 using Mintrans.Game.Tools;
@@ -26,6 +29,7 @@ public partial class Main : Node2D
     private CellHighlight _highlight = null!;
     private Hud _hud = null!;
     private DisplayNames _names = null!;
+    private EconomyState? _economy;
 
     public override void _Ready()
     {
@@ -82,20 +86,32 @@ public partial class Main : Node2D
         AddChild(_highlight);
         _highlight.Init(map, _projection, style);
 
+        // Симуляция и её модули: экономика (склады, добыча, переработка, спрос). Транспорт подключится сюда же.
+        var simulation = new GameSimulation(new SimulationState(map));
+        _economy = EconomyModule.Install(simulation, content.Economy);
+        EconomyLoader.SeedStocks(_economy, description);
+
         var labels = new SiteLabels { Name = "SiteLabels" };
         AddChild(labels);
-        labels.Init(map, _projection, _camera);
+        labels.Init(map, _projection, _camera,
+            site => _economy.At(site.Id) is { } economic ? EconomyText.Status(economic, _names) : null);
 
         MoveChild(_camera, -1);
         _hud.SetTitle(description.Name);
         _map = map;
 
-        // Симуляция: пока в ней только время; системы экономики и транспорта подключатся сюда же.
-        var simulation = new GameSimulation(new SimulationState(map));
         var driver = new SimulationDriver { Name = "Simulation" };
         AddChild(driver);
         driver.Init(simulation, content.Simulation);
         driver.Runner.Paused = args.Paused;
+        // Суточный расчёт обновляет подписи и панель клетки.
+        simulation.StepCompleted += time =>
+        {
+            if (!time.IsStartOfDay)
+                return;
+            labels.Refresh();
+            RefreshCellInfo();
+        };
         if (args.SkipHours > 0)
             simulation.Run(args.SkipHours);
         var timeControls = new TimeControls { Name = "TimeControls" };
@@ -131,7 +147,20 @@ public partial class Main : Node2D
         if (cell == _highlight.Cell)
             return;
         _highlight.Cell = cell;
-        _hud.SetCellInfo(cell is { } c ? CellDescriber.Describe(_map, c, _names) : null);
+        RefreshCellInfo();
+    }
+
+    private void RefreshCellInfo()
+    {
+        if (_map is null || _highlight.Cell is not { } cell)
+        {
+            _hud.SetCellInfo(null);
+            return;
+        }
+        var lines = CellDescriber.Describe(_map, cell, _names).ToList();
+        if (_map.Sites.At(cell) is { } site && _economy?.At(site.Id) is { } economic)
+            lines.AddRange(EconomyText.Details(economic, _names));
+        _hud.SetCellInfo(lines);
     }
 
     private Rect2 MapBounds(WorldMap map)
