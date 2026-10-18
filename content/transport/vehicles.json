@@ -22,8 +22,9 @@
     // --- Паровозы ---
     { "id": "steam_fd", "title": "Паровоз ФД", "role": "locomotive", "network": "rail",
       "availableFromYear": 1950, "speed": 1.4, "maxWagons": 20, "length": 2 },
+    // Стартовый паровоз прототипа (docs/11b): 12 гружёных вагонов — временный предел до модели тяги.
     { "id": "steam_l", "title": "Паровоз Л", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1950, "speed": 1.5, "maxWagons": 14, "length": 2 },
+      "availableFromYear": 1950, "speed": 1.5, "maxWagons": 12, "length": 2 },
 
     // --- Магистральные тепловозы ---
     { "id": "diesel_te2", "title": "Тепловоз ТЭ2", "role": "locomotive", "network": "rail",
@@ -50,6 +51,7 @@
       "availableFromYear": 1994, "speed": 2.6, "capacity": 1.5, "bodies": ["flatbed"], "length": 1 },
 
     // --- Средние грузовики ---
+    // Стартовый грузовик прототипа (docs/11b): реальная грузоподъёмность 2,5 т.
     { "id": "gaz_51", "title": "ГАЗ-51", "role": "truck", "network": "road",
       "availableFromYear": 1950, "speed": 2.0, "capacity": 2.5, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "gaz_53a", "title": "ГАЗ-53А", "role": "truck", "network": "road",

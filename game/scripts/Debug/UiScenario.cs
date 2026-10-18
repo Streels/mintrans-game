@@ -87,13 +87,13 @@ public partial class UiScenario : Node
         ClickButton("Автогараж");
         Drag(P(147, 161), P(147, 160));
 
-        // Два поезда по 11 полувагонов: уголь и руда на завод.
+        // Стартовая пара docs/11b. Два паровоза Л по 12 полувагонов: уголь и руда на завод.
         ClickButton("Осмотр");
         ClickCell(P(180, 152));
         foreach (var mine in new[] { P(203, 48), P(65, 50) })
         {
-            ClickButton("Купить: Паровоз ФД");
-            for (var i = 0; i < 11; i++)
+            ClickButton("Купить: Паровоз Л");
+            for (var i = 0; i < 12; i++)
                 ClickButton("+ Полувагон");
             ClickButton("Выбрать А");
             // Угольная шахта при виде всей карты оказывается под панелью депо — сдвигаем карту, как сделал бы игрок.
@@ -104,11 +104,11 @@ public partial class UiScenario : Node
             ClickCell(P(156, 149));
             ClickButton("Отправить по маршруту");
         }
-        // Три грузовика: сталь с завода в город.
+        // Три ГАЗ-51 с бортовым кузовом: сталь с завода в город.
         ClickCell(P(147, 161));
         for (var i = 0; i < 3; i++)
         {
-            ClickButton("Купить: МАЗ-200 бортовой");
+            ClickButton("Купить: ГАЗ-51 бортовой");
             ClickButton("Выбрать А");
             ClickCell(P(149, 159));
             ClickButton("Выбрать Б");

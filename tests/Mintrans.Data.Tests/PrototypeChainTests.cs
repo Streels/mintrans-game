@@ -58,10 +58,11 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         // 4. Техника и маршруты.
         StopRef Stop(string key, string network) =>
             transport.Stops.All.First(s => s.Network == network && s.Owner == map.Sites.GetByKey(key).Id).Ref;
+        // Стартовая пара прототипа (docs/11b): паровоз Л с 12 полувагонами и ГАЗ-51 с бортовым кузовом.
         Vehicle Train()
         {
-            var train = transport.Buy(depot.Built!.Id, "steam_fd");
-            for (var i = 0; i < 11; i++)
+            var train = transport.Buy(depot.Built!.Id, "steam_l");
+            for (var i = 0; i < 12; i++)
                 transport.AddWagon(train.Id, "gondola");
             return train;
         }
@@ -71,7 +72,7 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         transport.AssignRoute(oreTrain.Id, Stop("iron_mine", "rail"), Stop("steel_plant", "rail"));
         for (var i = 0; i < 3; i++)
         {
-            var truck = transport.Buy(garage.Built!.Id, "maz_200", "flatbed");
+            var truck = transport.Buy(garage.Built!.Id, "gaz_51", "flatbed");
             transport.AssignRoute(truck.Id, Stop("steel_plant", "road"), Stop("city", "road"));
         }
 
