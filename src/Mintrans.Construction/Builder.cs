@@ -1,6 +1,7 @@
 using Mintrans.Core.Grid;
 using Mintrans.Core.Ids;
 using Mintrans.World;
+using Mintrans.World.Facilities;
 using Mintrans.World.Networks;
 using Mintrans.World.Sites;
 
@@ -24,6 +25,19 @@ public sealed record StationPlan(
     public IReadOnlyList<GridPos> Cells => Area?.Cells().ToList() ?? [];
 }
 
+/// <summary>План сооружения; после постройки <see cref="Built"/> — созданное сооружение.</summary>
+public sealed record FacilityPlan(
+    FacilityDefinition Definition,
+    GridRect? Area,
+    Direction? Entrance,
+    SiteId Owner,
+    IReadOnlyList<BuildProblem> Problems)
+{
+    public bool CanBuild => Problems.Count == 0 && Area is not null;
+    public IReadOnlyList<GridPos> Cells => Area?.Cells().ToList() ?? [];
+    public Facility? Built { get; init; }
+}
+
 /// <summary>
 /// Строительство игроком: пути, дороги, станции и снос. Сначала план с проверкой
 /// (для подсветки при протягивании мышью), затем постройка того же плана.
@@ -36,6 +50,7 @@ public sealed class Builder
     private readonly ConstructionCatalog _catalog;
     private readonly IReadOnlyList<INetworkCellRule> _cellRules;
     private readonly SitePlacement _placement;
+    private readonly List<IDemolishGuard> _guards = new();
 
     public Builder(WorldMap map, ConstructionCatalog catalog, IEnumerable<INetworkCellRule>? cellRules = null, SitePlacement? placement = null)
     {
@@ -46,9 +61,13 @@ public sealed class Builder
             new InsideMapCellRule(),
             new ForbiddenTerrainRule(catalog.ForbiddenTerrain),
             new SiteCellRule(),
+            new FacilityCellRule(catalog),
         ];
         _placement = placement ?? SitePlacement.Basic();
     }
+
+    /// <summary>Подключить запрет сноса из другого модуля (например, «в депо стоит техника»).</summary>
+    public void AddDemolishGuard(IDemolishGuard guard) => _guards.Add(guard);
 
     public ConstructionCatalog Catalog => _catalog;
 
@@ -115,6 +134,8 @@ public sealed class Builder
 
         foreach (var cell in area.Cells().Where(_map.Contains))
         {
+            if (_map.Facilities.At(cell) is { } facility)
+                problems.Add(new BuildProblem("facility", $"Клетка занята: {facility.Name}.", cell));
             if (TerrainChecks.ForbiddenTerrainAt(_map, _catalog.ForbiddenTerrain, cell) is { } terrain)
                 problems.Add(terrain);
             var foreign = _map.Networks.Layers.FirstOrDefault(n => n.Type != station.Network && n.HasAny(cell));
@@ -138,6 +159,106 @@ public sealed class Builder
         return plan;
     }
 
+    // ---------- Депо, гаражи, городские пункты ----------
+
+    /// <summary>
+    /// План сооружения. Депо и гараж — одна клетка, въезд — в сторону протяжки мышью
+    /// (без протяжки — к соседней клетке с сетью). Остановка — полоса по уже проложенной сети на площадке объекта.
+    /// </summary>
+    public FacilityPlan PlanFacility(TypeId facilityId, GridPos from, GridPos to)
+    {
+        var definition = _catalog.Facility(facilityId);
+        return definition.Placement switch
+        {
+            FacilityPlacement.Depot => PlanDepot(definition, from, to),
+            FacilityPlacement.StopOnNetwork => PlanStop(definition, from, to),
+            _ => throw new ArgumentOutOfRangeException(nameof(facilityId)),
+        };
+    }
+
+    public FacilityPlan BuildFacility(TypeId facilityId, GridPos from, GridPos to)
+    {
+        var plan = PlanFacility(facilityId, from, to);
+        if (!plan.CanBuild)
+            return plan;
+        var definition = plan.Definition;
+        var facility = _map.Facilities.Add(definition.Id, definition.Title, plan.Area!.Value, plan.Entrance, plan.Owner);
+        if (definition.Placement == FacilityPlacement.Depot)
+            _map.Networks[definition.Network].LayEnd(plan.Area.Value.Origin, plan.Entrance!.Value);
+        return plan with { Built = facility };
+    }
+
+    private FacilityPlan PlanDepot(FacilityDefinition definition, GridPos from, GridPos to)
+    {
+        var area = new GridRect(from.X, from.Y, 1, 1);
+        var problems = new List<BuildProblem>();
+        if (!_map.Contains(from))
+        {
+            problems.Add(new BuildProblem("outside_map", "За пределами карты."));
+            return new FacilityPlan(definition, area, Direction.South, SiteId.None, problems);
+        }
+
+        var network = _map.Networks[definition.Network];
+        var entrance = from == to
+            ? Directions.All.Where(side => _map.Contains(from.Step(side)) && network.HasAny(from.Step(side)))
+                .Cast<Direction?>().FirstOrDefault() ?? Direction.South
+            : DominantSide(from, to);
+
+        if (_map.Sites.At(from) is { } site)
+            problems.Add(new BuildProblem("site_occupied", $"Клетка занята: {site.Name}.", from));
+        if (_map.Facilities.At(from) is { } facility)
+            problems.Add(new BuildProblem("facility", $"Клетка занята: {facility.Name}.", from));
+        if (_map.Networks.Layers.Any(n => n.HasAny(from)))
+            problems.Add(new BuildProblem("network", "На клетке уже проходит путь или дорога.", from));
+        if (TerrainChecks.ForbiddenTerrainAt(_map, _catalog.ForbiddenTerrain, from) is { } terrain)
+            problems.Add(terrain);
+        if (!_map.Contains(from.Step(entrance)))
+            problems.Add(new BuildProblem("outside_map", "Въезд смотрит за пределы карты.", from));
+        return new FacilityPlan(definition, area, entrance, SiteId.None, problems);
+    }
+
+    private FacilityPlan PlanStop(FacilityDefinition definition, GridPos from, GridPos to)
+    {
+        var alongX = Math.Abs(to.X - from.X) >= Math.Abs(to.Y - from.Y);
+        var area = alongX
+            ? new GridRect(Math.Min(from.X, to.X), from.Y, Math.Abs(to.X - from.X) + 1, 1)
+            : new GridRect(from.X, Math.Min(from.Y, to.Y), 1, Math.Abs(to.Y - from.Y) + 1);
+        var problems = new List<BuildProblem>();
+        if (Math.Max(area.Width, area.Height) > definition.MaxLength)
+            problems.Add(new BuildProblem("too_long", $"Пункт длиннее {definition.MaxLength} клеток."));
+
+        var network = _map.Networks[definition.Network];
+        var owners = new HashSet<Site>();
+        foreach (var cell in area.Cells())
+        {
+            if (!_map.Contains(cell))
+            {
+                problems.Add(new BuildProblem("outside_map", "За пределами карты.", cell));
+                continue;
+            }
+            if (_map.Sites.At(cell) is { } site && definition.SiteTypes.Contains(site.Type))
+                owners.Add(site);
+            else
+                problems.Add(new BuildProblem("no_site", "Пункт ставится на улицах города.", cell));
+            if (!network.HasAny(cell))
+                problems.Add(new BuildProblem("no_network", "Пункт ставится на уже проложенную дорогу.", cell));
+            if (_map.Facilities.At(cell) is { } facility)
+                problems.Add(new BuildProblem("facility", $"Клетка занята: {facility.Name}.", cell));
+        }
+        if (owners.Count > 1)
+            problems.Add(new BuildProblem("many_sites", "Пункт должен относиться к одному городу."));
+        var owner = owners.Count == 1 ? owners.First().Id : SiteId.None;
+        return new FacilityPlan(definition, area, null, owner, problems);
+    }
+
+    private static Direction DominantSide(GridPos from, GridPos to)
+    {
+        var (dx, dy) = (to.X - from.X, to.Y - from.Y);
+        return Math.Abs(dx) >= Math.Abs(dy)
+            ? dx > 0 ? Direction.East : Direction.West
+            : dy > 0 ? Direction.South : Direction.North;
+    }
+
     // ---------- Снос ----------
 
     /// <summary>План сноса прямоугольником: все сети в клетках и станции, которые он задевает.</summary>
@@ -150,6 +271,11 @@ public sealed class Builder
             if (!site.CanDetach(part))
                 problems.Add(new BuildProblem("part_holds_others",
                     $"Станцию у «{site.Name}» нельзя снести: к ней примыкают другие части.", part.Area.Origin));
+        }
+        foreach (var facility in FacilitiesIn(area))
+        {
+            foreach (var reason in _guards.Select(g => g.CanRemove(facility)).OfType<string>())
+                problems.Add(new BuildProblem("guarded", $"{facility.Name}: {reason}", facility.Area.Origin));
         }
         var cells = area.Cells().Where(_map.Contains).ToList();
         if (cells.Count == 0)
@@ -169,10 +295,22 @@ public sealed class Builder
             foreach (var cell in part.Area.Cells())
                 ClearNetworks(cell);
         }
+        foreach (var facility in FacilitiesIn(area))
+        {
+            _map.Facilities.Remove(facility.Id);
+            if (_catalog.Facility(facility.Kind).Placement == FacilityPlacement.Depot)
+            {
+                foreach (var cell in facility.Area.Cells())
+                    ClearNetworks(cell);
+            }
+        }
         foreach (var cell in plan.Cells)
             ClearNetworks(cell);
         return plan;
     }
+
+    private List<Facility> FacilitiesIn(GridRect area) =>
+        _map.Facilities.All.Where(f => f.Area.Intersects(area)).ToList();
 
     private void ClearNetworks(GridPos cell)
     {

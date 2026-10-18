@@ -83,8 +83,17 @@ public partial class BuildController : Node2D
                 UpdatePreview();
                 GetViewport().SetInputAsHandled();
                 break;
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false } click when Tool is null:
+                // Без инструмента щелчок — выбор: депо, пункт для маршрута и т. п.
+                TrackHover(click.Position);
+                if (_hover is { } cell)
+                    CellClicked?.Invoke(cell);
+                break;
         }
     }
+
+    /// <summary>Щелчок по клетке без выбранного инструмента.</summary>
+    public event Action<GridPos>? CellClicked;
 
     private void Commit(GridPos from, GridPos to)
     {

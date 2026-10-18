@@ -6,5 +6,6 @@
     <ProjectReference Include="..\Mintrans.Simulation\Mintrans.Simulation.csproj" />
     <ProjectReference Include="..\Mintrans.Construction\Mintrans.Construction.csproj" />
     <ProjectReference Include="..\Mintrans.Economy\Mintrans.Economy.csproj" />
+    <ProjectReference Include="..\Mintrans.Transport\Mintrans.Transport.csproj" />
   </ItemGroup>
 </Project>

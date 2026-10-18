@@ -10,6 +10,7 @@
     <Project Path="src/Mintrans.Data/Mintrans.Data.csproj" />
     <Project Path="src/Mintrans.Economy/Mintrans.Economy.csproj" />
     <Project Path="src/Mintrans.Simulation/Mintrans.Simulation.csproj" />
+    <Project Path="src/Mintrans.Transport/Mintrans.Transport.csproj" />
     <Project Path="src/Mintrans.World/Mintrans.World.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -18,6 +19,7 @@
     <Project Path="tests/Mintrans.Data.Tests/Mintrans.Data.Tests.csproj" />
     <Project Path="tests/Mintrans.Economy.Tests/Mintrans.Economy.Tests.csproj" />
     <Project Path="tests/Mintrans.Simulation.Tests/Mintrans.Simulation.Tests.csproj" />
+    <Project Path="tests/Mintrans.Transport.Tests/Mintrans.Transport.Tests.csproj" />
     <Project Path="tests/Mintrans.World.Tests/Mintrans.World.Tests.csproj" />
   </Folder>
 </Solution>

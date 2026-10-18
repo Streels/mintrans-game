@@ -19,5 +19,15 @@
       "attachTo": ["coal_mine", "iron_mine", "steel_plant"] },
     { "id": "truck_station", "network": "road", "maxLength": 4,
       "attachTo": ["coal_mine", "iron_mine", "steel_plant"] }
+  ],
+
+  // Сооружения вне площадок предприятий (docs/10):
+  //   depot         — одна клетка с въездом с одной стороны (сторона — по протяжке мышью); здесь покупают технику;
+  //   stopOnNetwork — пункт на уже проложенной сети внутри площадки объекта (городской грузовой пункт на улице).
+  "facilities": [
+    { "id": "rail_depot", "title": "Ж/д депо", "network": "rail", "placement": "depot" },
+    { "id": "truck_garage", "title": "Автогараж", "network": "road", "placement": "depot" },
+    { "id": "city_truck_stop", "title": "Городской грузовой пункт", "network": "road",
+      "placement": "stopOnNetwork", "siteTypes": ["city"], "maxLength": 3 }
   ]
 }

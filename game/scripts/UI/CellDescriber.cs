@@ -29,6 +29,9 @@ public static class CellDescriber
             yield return $"{names[network.Type.Value]}: {string.Join(", ", strokes)}";
         }
 
+        if (map.Facilities.At(cell) is { } facility)
+            yield return $"Сооружение: {facility.Name}";
+
         if (map.Sites.At(cell) is { } site)
         {
             yield return $"Объект: {site.Name} ({names[site.Type.Value]})";

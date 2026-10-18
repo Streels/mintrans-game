@@ -1,4 +1,5 @@
 using Mintrans.Core.Grid;
+using Mintrans.World.Facilities;
 using Mintrans.World.Networks;
 using Mintrans.World.Sites;
 using Mintrans.World.Terrain;
@@ -21,6 +22,7 @@ public sealed class WorldMap
         Terrain = new TerrainLayers(terrainCatalog, width, height);
         Networks = new NetworkSet(networks, width, height);
         Sites = new SiteRegistry(width, height);
+        Facilities = new FacilityRegistry(width, height);
     }
 
     public int Width { get; }
@@ -33,6 +35,9 @@ public sealed class WorldMap
     public TerrainLayers Terrain { get; }
     public NetworkSet Networks { get; }
     public SiteRegistry Sites { get; }
+
+    /// <summary>Транспортные сооружения вне площадок: депо, гаражи, городские пункты.</summary>
+    public FacilityRegistry Facilities { get; }
 
     public bool Contains(GridPos pos) => Bounds.Contains(pos);
 }

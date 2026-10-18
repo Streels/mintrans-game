@@ -6,10 +6,10 @@ namespace Mintrans.Game.App;
 /// Параметры запуска после "--" в командной строке Godot:
 /// --content=путь  --map=prototype  --focus=city  --zoom=1.5  --screenshot=файл.png
 /// --paused (начать на паузе)  --hours=26 (сразу промотать столько игровых часов)
-/// --ui-demo (сценарий проверки строительства мышью; с --screenshot сохраняет кадр в конце)
+/// --ui-demo[=build|chain] (сценарий проверки интерфейса мышью; с --screenshot сохраняет кадр в конце)
 /// </summary>
 public sealed record AppArgs(
-    string? Content, string Map, string? Focus, float? Zoom, string? Screenshot, bool Paused, long SkipHours, bool UiDemo)
+    string? Content, string Map, string? Focus, float? Zoom, string? Screenshot, bool Paused, long SkipHours, string? UiDemo)
 {
     public static AppArgs Parse(IEnumerable<string> args)
     {
@@ -27,7 +27,7 @@ public sealed record AppArgs(
             values.GetValueOrDefault("screenshot"),
             list.Contains("--paused"),
             values.TryGetValue("hours", out var hours) && long.TryParse(hours, out var h) ? h : 0,
-            list.Contains("--ui-demo"));
+            values.GetValueOrDefault("ui-demo") ?? (list.Contains("--ui-demo") ? "build" : null));
     }
 
     public static AppArgs FromCommandLine() => Parse(OS.GetCmdlineUserArgs());

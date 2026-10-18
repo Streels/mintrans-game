@@ -60,6 +60,27 @@ public sealed class StationTool(Builder builder, TypeId station) : IBuildTool
     }
 }
 
+/// <summary>Депо, автогараж или городской пункт.</summary>
+public sealed class FacilityTool(Builder builder, TypeId facility) : IBuildTool
+{
+    public string Id => facility.Value;
+
+    public ToolPreview Preview(GridPos from, GridPos to) => Describe(builder.PlanFacility(facility, from, to));
+
+    public ToolPreview Apply(GridPos from, GridPos to) => Describe(builder.BuildFacility(facility, from, to));
+
+    private static ToolPreview Describe(FacilityPlan plan)
+    {
+        var hint = plan.Definition.Placement == FacilityPlacement.Depot
+            ? "протяните мышью в сторону въезда"
+            : "по улице города";
+        var message = plan.Problems.Count > 0 ? plan.Problems[0].Message
+            : plan.Built is { } built ? built.Name
+            : $"{plan.Definition.Title}: {hint}";
+        return new ToolPreview(plan.Cells, PathTool.BadCells(plan.Problems), plan.CanBuild, message);
+    }
+}
+
 /// <summary>Снос прямоугольником: сети и станции.</summary>
 public sealed class DemolishTool(Builder builder) : IBuildTool
 {
@@ -81,6 +102,7 @@ public static class BuildTools
     [
         .. builder.Catalog.Networks.Select(n => (IBuildTool)new PathTool(builder, n.Network)),
         .. builder.Catalog.Stations.Select(s => (IBuildTool)new StationTool(builder, s.Id)),
+        .. builder.Catalog.Facilities.Select(f => (IBuildTool)new FacilityTool(builder, f.Id)),
         new DemolishTool(builder),
     ];
 }

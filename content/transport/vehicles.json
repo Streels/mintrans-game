@@ -1,0 +1,31 @@
+// Техника и правила перевозок (docs/11, docs/12). Все числа ВРЕМЕННЫЕ.
+// speed — клеток за игровой час; capacity — т; length — условные единицы длины;
+// cargo — какие ресурсы можно везти.
+{
+  "networks": [
+    // Поезда: покупаются в ж/д депо, собираются из локомотива и вагонов; 2 единицы длины на клетку.
+    { "network": "rail", "depot": "rail_depot", "stopParts": ["rail_station"], "stopFacilities": [],
+      "unitsPerCell": 2, "trains": true },
+    // Грузовики: покупаются в автогараже; грузят на автостанциях предприятий и в городском пункте.
+    { "network": "road", "depot": "truck_garage", "stopParts": ["truck_station"], "stopFacilities": ["city_truck_stop"],
+      "unitsPerCell": 1, "trains": false }
+  ],
+
+  "models": [
+    // ~1,5 клетки в час: межзаводской рейс в ~250 клеток занимает около недели (docs/01).
+    { "id": "freight_locomotive", "title": "Грузовой локомотив", "role": "locomotive", "network": "rail",
+      "speed": 1.5, "length": 1 },
+    { "id": "gondola", "title": "Полувагон", "role": "wagon", "network": "rail",
+      "capacity": 60, "cargo": ["coal", "iron_ore"], "length": 1 },
+    { "id": "flatcar", "title": "Платформа", "role": "wagon", "network": "rail",
+      "capacity": 50, "cargo": ["steel"], "length": 1 },
+    { "id": "truck", "title": "Грузовик", "role": "truck", "network": "road",
+      "speed": 2.0, "capacity": 20, "cargo": ["coal", "iron_ore", "steel"], "length": 1 }
+  ],
+
+  // Износ растёт на каждой клетке пути; после разгрузки при износе от serviceAt техника едет на обслуживание.
+  "maintenance": { "wearPerCell": 0.0005, "serviceAt": 0.8, "serviceHours": 24 },
+
+  // Сколько часов ждать полной загрузки, прежде чем ехать с тем, что уже погружено.
+  "loading": { "maxWaitHours": 48 }
+}

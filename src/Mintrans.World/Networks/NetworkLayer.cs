@@ -48,6 +48,12 @@ public abstract class NetworkLayer
     /// <summary>Провести сеть сквозь одну клетку от стороны <paramref name="a"/> к стороне <paramref name="b"/> (например, через станцию).</summary>
     public abstract void LayThrough(GridPos pos, Direction a, Direction b);
 
+    /// <summary>
+    /// Тупик: сеть в клетке выходит только к стороне <paramref name="side"/> (въезд в депо или гараж)
+    /// и стыкуется с сетью соседа за этой стороной, если та есть.
+    /// </summary>
+    public abstract void LayEnd(GridPos pos, Direction side);
+
     /// <summary>Убрать сеть из клетки целиком (снос). Связи соседей с этой клеткой тоже убираются.</summary>
     public abstract void ClearCell(GridPos pos);
 

@@ -22,6 +22,27 @@ public sealed record StationDefinition(
     IReadOnlyList<TypeId> AttachToSiteTypes,
     int MaxLength);
 
+/// <summary>Как ставится сооружение.</summary>
+public enum FacilityPlacement
+{
+    /// <summary>Депо или гараж: одна свободная клетка с въездом с одной стороны (сторона — по протяжке мышью).</summary>
+    Depot,
+
+    /// <summary>Остановка на уже проложенной сети внутри площадки объекта (городской грузовой пункт на улице).</summary>
+    StopOnNetwork,
+}
+
+/// <summary>Сооружение вне площадок предприятий (docs/10): депо, автогараж, городской пункт.</summary>
+/// <param name="Title">Название для игрока; к нему добавляется номер.</param>
+/// <param name="SiteTypes">Для остановки — на площадках каких объектов её можно ставить.</param>
+public sealed record FacilityDefinition(
+    TypeId Id,
+    string Title,
+    TypeId Network,
+    FacilityPlacement Placement,
+    IReadOnlyList<TypeId> SiteTypes,
+    int MaxLength);
+
 /// <summary>Природа, на которой строить нельзя: категория рельефа и запрещённые виды (вода — пока нет мостов).</summary>
 public sealed record ForbiddenTerrain(TypeId Category, IReadOnlyList<TypeId> Kinds);
 
@@ -30,16 +51,26 @@ public sealed class ConstructionCatalog
 {
     private readonly Dictionary<TypeId, NetworkBuildDefinition> _networks;
     private readonly Dictionary<TypeId, StationDefinition> _stations;
+    private readonly Dictionary<TypeId, FacilityDefinition> _facilities;
 
     public ConstructionCatalog(
         IEnumerable<NetworkBuildDefinition> networks,
         IEnumerable<StationDefinition> stations,
-        IEnumerable<ForbiddenTerrain> forbiddenTerrain)
+        IEnumerable<ForbiddenTerrain> forbiddenTerrain,
+        IEnumerable<FacilityDefinition>? facilities = null)
     {
         _networks = networks.ToDictionary(n => n.Network);
         _stations = stations.ToDictionary(s => s.Id);
+        _facilities = (facilities ?? []).ToDictionary(f => f.Id);
         ForbiddenTerrain = forbiddenTerrain.ToList();
     }
+
+    public IReadOnlyCollection<FacilityDefinition> Facilities => _facilities.Values;
+
+    public FacilityDefinition Facility(TypeId id) =>
+        _facilities.TryGetValue(id, out var definition)
+            ? definition
+            : throw new KeyNotFoundException($"Нет вида сооружения «{id}».");
 
     public IReadOnlyCollection<NetworkBuildDefinition> Networks => _networks.Values;
     public IReadOnlyCollection<StationDefinition> Stations => _stations.Values;

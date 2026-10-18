@@ -4,6 +4,7 @@ using Mintrans.Data.Json;
 using Mintrans.Data.Maps;
 using Mintrans.Economy.Definitions;
 using Mintrans.Simulation.Time;
+using Mintrans.Transport.Definitions;
 using Mintrans.World.Networks;
 using Mintrans.World.Terrain;
 
@@ -21,7 +22,8 @@ public sealed class GameContent
         IReadOnlyList<NetworkDefinition> networks,
         SimulationSettings simulation,
         ConstructionCatalog construction,
-        EconomyCatalog economy)
+        EconomyCatalog economy,
+        TransportCatalog transport)
     {
         Root = root;
         Terrain = terrain;
@@ -29,6 +31,7 @@ public sealed class GameContent
         Simulation = simulation;
         Construction = construction;
         Economy = economy;
+        Transport = transport;
     }
 
     public string Root { get; }
@@ -37,6 +40,7 @@ public sealed class GameContent
     public SimulationSettings Simulation { get; }
     public ConstructionCatalog Construction { get; }
     public EconomyCatalog Economy { get; }
+    public TransportCatalog Transport { get; }
 
     public static GameContent Load(string root)
     {
@@ -47,7 +51,8 @@ public sealed class GameContent
         var simulation = SimulationSettingsLoader.Load(Read(root, "simulation.json"));
         var construction = ConstructionLoader.Load(Read(root, "construction.json"), networks);
         var economy = EconomyLoader.Load(Read(root, "economy/resources.json"), Read(root, "economy/sites.json"));
-        return new GameContent(root, terrain, networks, simulation, construction, economy);
+        var transport = TransportLoader.Load(Read(root, "transport/vehicles.json"), economy);
+        return new GameContent(root, terrain, networks, simulation, construction, economy, transport);
     }
 
     /// <summary>Загрузить карту по имени файла без расширения: "prototype" → content/maps/prototype.json.</summary>

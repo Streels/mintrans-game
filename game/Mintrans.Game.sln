@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mintrans.Construction", "..
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mintrans.Economy", "..\src\Mintrans.Economy\Mintrans.Economy.csproj", "{F6C69783-7124-44F3-843E-0F083858605F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mintrans.Transport", "..\src\Mintrans.Transport\Mintrans.Transport.csproj", "{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -111,6 +113,18 @@ Global
 		{F6C69783-7124-44F3-843E-0F083858605F}.Release|x64.Build.0 = Release|Any CPU
 		{F6C69783-7124-44F3-843E-0F083858605F}.Release|x86.ActiveCfg = Release|Any CPU
 		{F6C69783-7124-44F3-843E-0F083858605F}.Release|x86.Build.0 = Release|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Debug|x64.Build.0 = Debug|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Debug|x86.Build.0 = Debug|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Release|x64.ActiveCfg = Release|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Release|x64.Build.0 = Release|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Release|x86.ActiveCfg = Release|Any CPU
+		{9C4B82C0-EA0A-4FEC-8551-F89322349A9F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

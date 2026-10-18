@@ -11,7 +11,7 @@
   "road": "Дорога", "rail": "Железная дорога",
   "city": "город", "coal_mine": "угольная шахта", "iron_mine": "железорудная шахта", "steel_plant": "металлургический завод",
   "rail_station": "Ж/д станция", "truck_station": "Автостанция",
-  "tool.inspect": "Осмотр", "tool.rail": "Ж/д путь", "tool.road": "Дорога", "tool.demolish": "Снос",
+  "tool.inspect": "Осмотр", "rail_depot": "Ж/д депо", "truck_garage": "Автогараж", "city_truck_stop": "Городской пункт", "tool.rail": "Ж/д путь", "tool.road": "Дорога", "tool.demolish": "Снос",
   "workshop": "цех",
   "North": "С", "East": "В", "South": "Ю", "West": "З"
 }

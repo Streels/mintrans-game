@@ -37,6 +37,12 @@ public sealed class EdgeNetworkLayer : NetworkLayer
         AddEdge(pos, b);
     }
 
+    public override void LayEnd(GridPos pos, Direction side)
+    {
+        AddEdge(pos, side);
+        JoinNeighbor(pos, side, open: false);
+    }
+
     public override void ClearCell(GridPos pos)
     {
         foreach (var side in _edges[pos].Enumerate())

@@ -17,6 +17,7 @@
     <ProjectReference Include="..\..\src\Mintrans.Simulation\Mintrans.Simulation.csproj" />
     <ProjectReference Include="..\..\src\Mintrans.Construction\Mintrans.Construction.csproj" />
     <ProjectReference Include="..\..\src\Mintrans.Economy\Mintrans.Economy.csproj" />
+    <ProjectReference Include="..\..\src\Mintrans.Transport\Mintrans.Transport.csproj" />
   </ItemGroup>
 
 </Project>

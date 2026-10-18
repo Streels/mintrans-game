@@ -10,6 +10,7 @@ using Mintrans.Game.Tools;
 using Mintrans.Game.UI;
 using Mintrans.Game.View;
 using Mintrans.Simulation;
+using Mintrans.Transport.Systems;
 using Mintrans.World;
 
 namespace Mintrans.Game.App;
@@ -30,6 +31,8 @@ public partial class Main : Node2D
     private Hud _hud = null!;
     private DisplayNames _names = null!;
     private EconomyState? _economy;
+    private FleetPanel _fleet = null!;
+    private GameSimulation? _simulation;
 
     public override void _Ready()
     {
@@ -49,11 +52,11 @@ public partial class Main : Node2D
             _hud.ShowError(e.Message);
         }
 
-        if (args.UiDemo && _map is not null)
+        if (args.UiDemo is { } demo && _map is not null && _simulation is { } simulation)
         {
             var scenario = new UiScenario { ScreenshotPath = args.Screenshot };
             AddChild(scenario);
-            scenario.Init(_map, _projection);
+            scenario.Init(_map, _projection, demo, simulation.Run);
         }
         else if (args.Screenshot is { } path)
             AddChild(new ScreenshotCapture { Path = path });
@@ -82,14 +85,23 @@ public partial class Main : Node2D
         AddChild(networks);
         networks.Init(map, _projection, style);
 
+        var facilities = new FacilityView { Name = "Facilities" };
+        AddChild(facilities);
+        facilities.Init(map, _projection, style);
+
+        // Техника рисуется поверх сетей; данные для неё появятся ниже, вместе с симуляцией.
+        var vehicles = new VehicleView { Name = "Vehicles" };
+        AddChild(vehicles);
+
         _highlight = new CellHighlight { Name = "Highlight" };
         AddChild(_highlight);
         _highlight.Init(map, _projection, style);
 
-        // Симуляция и её модули: экономика (склады, добыча, переработка, спрос). Транспорт подключится сюда же.
-        var simulation = new GameSimulation(new SimulationState(map));
+        // Симуляция и её модули: экономика (склады, добыча, переработка, спрос) и транспорт (техника, маршруты).
+        var simulation = _simulation = new GameSimulation(new SimulationState(map));
         _economy = EconomyModule.Install(simulation, content.Economy);
         EconomyLoader.SeedStocks(_economy, description);
+        var transport = TransportModule.Install(simulation, content.Transport);
 
         var labels = new SiteLabels { Name = "SiteLabels" };
         AddChild(labels);
@@ -104,9 +116,17 @@ public partial class Main : Node2D
         AddChild(driver);
         driver.Init(simulation, content.Simulation);
         driver.Runner.Paused = args.Paused;
-        // Суточный расчёт обновляет подписи и панель клетки.
+        vehicles.Init(map, _projection, transport, driver.Runner);
+
+        // Панель депо: покупка техники и маршруты.
+        _fleet = new FleetPanel { Name = "Fleet" };
+        _hud.AddWidget(_fleet);
+        _fleet.Init(transport, map, _names);
+
+        // Каждый час обновляется панель депо, раз в сутки — подписи объектов и панель клетки.
         simulation.StepCompleted += time =>
         {
+            _fleet.Refresh();
             if (!time.IsStartOfDay)
                 return;
             labels.Refresh();
@@ -120,9 +140,18 @@ public partial class Main : Node2D
 
         // Строительство: правила — в ядре (Builder), здесь только ввод мышью и подсветка.
         var builder = new Builder(map, content.Construction);
+        builder.AddDemolishGuard(new DelegateDemolishGuard(f => TransportModule.WhyFacilityInUse(transport, f)));
         var build = new BuildController { Name = "Build" };
         AddChild(build);
         build.Init(map, _projection);
+        // Щелчок без инструмента: выбор пункта маршрута или открытие депо.
+        build.CellClicked += cell =>
+        {
+            if (_fleet.Picking is not null)
+                _fleet.Pick(cell);
+            else if (map.Facilities.At(cell) is { } facility && transport.Catalog.NetworkByDepot(facility.Kind) is not null)
+                _fleet.Open(facility);
+        };
         var toolBar = new ToolBar { Name = "ToolBar" };
         _hud.AddWidget(toolBar);
         toolBar.Init(build, BuildTools.Create(builder), _names);

@@ -38,7 +38,24 @@ public static class ConstructionLoader
             .Select(node => new ForbiddenTerrain(node.String("category"), Ids(node.Get("kinds"))))
             .ToList() ?? [];
 
-        return new ConstructionCatalog(builds, stations, forbidden);
+        var facilities = root.Find("facilities")?.Items().Select(node =>
+        {
+            var placement = node.String("placement") switch
+            {
+                "depot" => FacilityPlacement.Depot,
+                "stopOnNetwork" => FacilityPlacement.StopOnNetwork,
+                var other => throw node.Get("placement").Error($"неизвестное размещение «{other}»: нужно depot или stopOnNetwork"),
+            };
+            return new FacilityDefinition(
+                node.String("id"),
+                node.String("title"),
+                Network(node.Get("network")),
+                placement,
+                node.Find("siteTypes") is { } types ? Ids(types) : [],
+                node.Int("maxLength", 1));
+        }).ToList() ?? [];
+
+        return new ConstructionCatalog(builds, stations, forbidden, facilities);
     }
 
     private static List<TypeId> Ids(JsonNode node) => node.Items().Select(i => new TypeId(i.AsString())).ToList();

@@ -36,6 +36,10 @@ public sealed class EconomicSite
     /// <summary>Завершённые сутки, от последних к ранним (не больше 30).</summary>
     public IEnumerable<DailyStats> History => _history;
 
+    /// <summary>Нужен ли объекту этот ресурс: он входит в какой-то его процесс (сырьё завода, спрос города).</summary>
+    public bool Needs(TypeId resource) =>
+        Definition.Processes.Any(p => p.Inputs.Any(i => i.Resource == resource));
+
     /// <summary>Принять груз с транспорта. Возвращает, сколько поместилось на склад.</summary>
     public Mass Receive(TypeId resource, Mass mass)
     {

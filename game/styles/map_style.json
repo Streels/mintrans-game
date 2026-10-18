@@ -26,7 +26,10 @@
   },
   "parts": {
     "rail_station":  { "fill": "#a08a5ccc", "outline": "#f5e6c0" },
-    "truck_station": { "fill": "#6f8a9ccc", "outline": "#d8ecf8" }
+    "truck_station": { "fill": "#6f8a9ccc", "outline": "#d8ecf8" },
+    "rail_depot":      { "fill": "#4a3f38ee", "outline": "#f0c48a" },
+    "truck_garage":    { "fill": "#3c4a55ee", "outline": "#9fd3f0" },
+    "city_truck_stop": { "fill": "#4fa8d888", "outline": "#bfe6ff" }
   },
   "highlight": "#ffffffcc"
 }

@@ -43,6 +43,9 @@ public sealed class TrackNetworkLayer : NetworkLayer
 
     public override void LayThrough(GridPos pos, Direction a, Direction b) => AddPiece(pos, Tracks.Between(a, b));
 
+    /// <summary>Рельсы не обрываются посреди клетки: в тупике кладётся прямой кусок вдоль стороны въезда.</summary>
+    public override void LayEnd(GridPos pos, Direction side) => AddPiece(pos, Tracks.Between(side, side.Opposite()));
+
     /// <summary>Куски пути соседей остаются: они лежат в своих клетках и просто становятся тупиками.</summary>
     public override void ClearCell(GridPos pos) => _pieces[pos] = TrackPieces.None;
 
