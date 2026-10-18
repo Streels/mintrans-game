@@ -1,0 +1,23 @@
+// Правила строительства игроком (docs/02, docs/06, docs/10). Денег пока нет — бюджет в теме 09.
+{
+  // Где нельзя строить совсем. Мосты будут, но их правила ещё не обсуждались.
+  "forbiddenTerrain": [
+    { "category": "water", "kinds": ["river", "lake"] }
+  ],
+
+  // На свободных клетках сеть можно класть всегда. На площадках объектов —
+  // только на перечисленных типах объектов (siteTypes) или частях площадки (parts).
+  "networks": [
+    { "network": "rail", "siteTypes": [], "parts": ["rail_station"] },
+    { "network": "road", "siteTypes": ["city"], "parts": ["truck_station"] }
+  ],
+
+  // Грузовые станции предприятий: полоса в одну клетку вплотную к площадке,
+  // становится её частью; сквозь неё укладывается своя сеть.
+  "stations": [
+    { "id": "rail_station", "network": "rail", "maxLength": 16,
+      "attachTo": ["coal_mine", "iron_mine", "steel_plant"] },
+    { "id": "truck_station", "network": "road", "maxLength": 4,
+      "attachTo": ["coal_mine", "iron_mine", "steel_plant"] }
+  ]
+}

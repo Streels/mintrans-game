@@ -1,0 +1,27 @@
+// Природные категории карты. Каждая категория — отдельный слой; категории не исключают друг друга.
+// Новая категория или вид добавляется здесь, без изменения кода.
+// Свойства видов (уклон, проходимость, стоимость стройки) появятся, когда их обсудим.
+{
+  "categories": [
+    {
+      "id": "surface",
+      "default": "grass",
+      "kinds": [ { "id": "grass" }, { "id": "meadow" }, { "id": "field" }, { "id": "rock" }, { "id": "sand" } ]
+    },
+    {
+      "id": "vegetation",
+      "default": "none",
+      "kinds": [ { "id": "none" }, { "id": "forest" } ]
+    },
+    {
+      "id": "water",
+      "default": "none",
+      "kinds": [ { "id": "none" }, { "id": "river" }, { "id": "lake" } ]
+    },
+    {
+      "id": "deposit",
+      "default": "none",
+      "kinds": [ { "id": "none" }, { "id": "coal" }, { "id": "iron_ore" } ]
+    }
+  ]
+}

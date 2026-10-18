@@ -1,0 +1,32 @@
+// Оформление карты. Только внешний вид: на правила игры не влияет.
+// Слои "terrain" применяются по порядку: base — основной цвет, blend — подмешать (amount), replace — заменить.
+{
+  "terrain": [
+    { "category": "surface", "mode": "base",
+      "colors": { "grass": "#7a9a4f", "meadow": "#93ad5a", "field": "#c2b062", "rock": "#8d8a80", "sand": "#d6c58f" } },
+    { "category": "deposit", "mode": "blend", "amount": 0.45,
+      "colors": { "coal": "#2b2b2b", "iron_ore": "#9c4a2e" } },
+    { "category": "vegetation", "mode": "blend", "amount": 0.7,
+      "colors": { "forest": "#2f5a2a" } },
+    { "category": "water", "mode": "replace",
+      "colors": { "river": "#3f7fc1", "lake": "#35699f" } }
+  ],
+  "height": { "shadePerLevel": 0.012, "slopeShade": 0.06, "checker": 0.025 },
+  "cliffs": { "right": "#5d5a4c", "left": "#4a4840" },
+  "networks": {
+    "road": { "color": "#ddd3b8", "width": 3 },
+    "rail": { "color": "#3c3530", "width": 3 }
+  },
+  "defaultSite": { "fill": "#ff00ff66", "outline": "#ff00ff" },
+  "sites": {
+    "city":        { "fill": "#b5a99a99", "outline": "#efe6da" },
+    "coal_mine":   { "fill": "#3a3a3acc", "outline": "#e0e0e0" },
+    "iron_mine":   { "fill": "#8a4a33cc", "outline": "#f0d0c0" },
+    "steel_plant": { "fill": "#5b6470cc", "outline": "#e8eef5" }
+  },
+  "parts": {
+    "rail_station":  { "fill": "#a08a5ccc", "outline": "#f5e6c0" },
+    "truck_station": { "fill": "#6f8a9ccc", "outline": "#d8ecf8" }
+  },
+  "highlight": "#ffffffcc"
+}

@@ -1,0 +1,64 @@
+// Тестовая карта первого прототипа (docs/01_first_prototype.md, docs/02_world_map.md).
+// Мало объектов, большие расстояния, рельеф не плоский, внешних дорог нет.
+// Размер 256x256 клеток — предварительный: масштаб клетки ещё не утверждён.
+{
+  "format": 1,
+  "id": "prototype",
+  "name": "Прототип: уголь, руда, сталь",
+  "size": [256, 256],
+  "seed": 0,
+
+  "terrain": [
+    { "op": "fill", "layer": "surface", "kind": "grass" },
+
+    // Горный массив на северо-западе и скалистые вершины.
+    { "op": "hill", "center": [30, 20], "radius": [45, 35], "height": 16 },
+    { "op": "hill", "center": [12, 52], "radius": [20, 18], "height": 8 },
+    { "op": "ellipse", "layer": "surface", "kind": "rock", "center": [28, 18], "radius": [22, 16] },
+
+    // Возвышенности в центре и на юго-востоке.
+    { "op": "hill", "center": [110, 92], "radius": [18, 14], "height": 6 },
+    { "op": "hill", "center": [232, 204], "radius": [30, 40], "height": 10 },
+    { "op": "hill", "center": [150, 236], "radius": [26, 14], "height": 4 },
+
+    // Река с севера впадает в озеро; карту она не разрезает.
+    { "op": "path", "layer": "water", "kind": "river", "width": 3,
+      "points": [[176, 0], [170, 40], [178, 80], [180, 96]] },
+    { "op": "ellipse", "layer": "water", "kind": "lake", "center": [181, 102], "radius": [14, 9] },
+    { "op": "hill", "center": [181, 102], "radius": [15, 10], "height": -2 },
+    { "op": "ellipse", "layer": "surface", "kind": "sand", "center": [181, 102], "radius": [16, 11] },
+
+    // Леса.
+    { "op": "ellipse", "layer": "vegetation", "kind": "forest", "center": [120, 30], "radius": [25, 15] },
+    { "op": "ellipse", "layer": "vegetation", "kind": "forest", "center": [60, 120], "radius": [20, 25] },
+    { "op": "ellipse", "layer": "vegetation", "kind": "forest", "center": [222, 140], "radius": [18, 22] },
+    { "op": "ellipse", "layer": "vegetation", "kind": "forest", "center": [12, 240], "radius": [20, 12] },
+    { "op": "ellipse", "layer": "vegetation", "kind": "forest", "center": [100, 170], "radius": [12, 9] },
+
+    // Луга и поля вокруг города.
+    { "op": "ellipse", "layer": "surface", "kind": "meadow", "center": [140, 200], "radius": [40, 25] },
+    { "op": "rect", "layer": "surface", "kind": "field", "rect": [20, 160, 50, 15] },
+    { "op": "rect", "layer": "surface", "kind": "field", "rect": [60, 186, 22, 20] },
+    { "op": "rect", "layer": "surface", "kind": "field", "rect": [24, 210, 34, 12] },
+
+    // Месторождения под шахтами.
+    { "op": "ellipse", "layer": "deposit", "kind": "coal", "center": [204, 44], "radius": [12, 10] },
+    { "op": "ellipse", "layer": "deposit", "kind": "iron_ore", "center": [66, 46], "radius": [14, 10] },
+
+    // Ровные площадки под объектами.
+    { "op": "level", "rect": [28, 178, 28, 28], "height": 0 },
+    { "op": "level", "rect": [148, 148, 18, 16], "height": 0 }
+  ],
+
+  "networks": [
+    // Внутренние улицы города. Внешних дорог и путей нет — их строит игрок.
+    { "op": "grid", "network": "road", "rect": [30, 180, 24, 24], "spacing": 6 }
+  ],
+
+  "sites": [
+    { "key": "city", "type": "city", "name": "Город", "rect": [30, 180, 24, 24] },
+    { "key": "coal_mine", "type": "coal_mine", "name": "Угольная шахта", "rect": [200, 40, 8, 8] },
+    { "key": "iron_mine", "type": "iron_mine", "name": "Железорудная шахта", "rect": [62, 42, 8, 8] },
+    { "key": "steel_plant", "type": "steel_plant", "name": "Металлургический завод", "rect": [150, 150, 14, 12] }
+  ]
+}

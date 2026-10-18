@@ -1,0 +1,17 @@
+{
+  "height": "Высота",
+  "surface": "Поверхность",
+  "vegetation": "Растительность",
+  "water": "Вода",
+  "deposit": "Месторождение",
+  "grass": "трава", "meadow": "луг", "field": "поле", "rock": "скалы", "sand": "песок",
+  "none": "нет", "forest": "лес",
+  "river": "река", "lake": "озеро",
+  "coal": "уголь", "iron_ore": "железная руда",
+  "road": "Дорога", "rail": "Железная дорога",
+  "city": "город", "coal_mine": "угольная шахта", "iron_mine": "железорудная шахта", "steel_plant": "металлургический завод",
+  "rail_station": "Ж/д станция", "truck_station": "Автостанция",
+  "tool.inspect": "Осмотр", "tool.rail": "Ж/д путь", "tool.road": "Дорога", "tool.demolish": "Снос",
+  "workshop": "цех",
+  "North": "С", "East": "В", "South": "Ю", "West": "З"
+}

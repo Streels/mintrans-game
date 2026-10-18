@@ -1,0 +1,18 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <!-- Слой отображения. Зависит от ядра, ядро от него — нет. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Mintrans.Game</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\src\Mintrans.Core\Mintrans.Core.csproj" />
+    <ProjectReference Include="..\src\Mintrans.World\Mintrans.World.csproj" />
+    <ProjectReference Include="..\src\Mintrans.Data\Mintrans.Data.csproj" />
+    <ProjectReference Include="..\src\Mintrans.Simulation\Mintrans.Simulation.csproj" />
+    <ProjectReference Include="..\src\Mintrans.Construction\Mintrans.Construction.csproj" />
+  </ItemGroup>
+</Project>

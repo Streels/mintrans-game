@@ -1,0 +1,13 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Godot
+.godot/
+*.translation
+export_presets.cfg
+
+# Прочее
+Thumbs.db
