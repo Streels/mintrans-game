@@ -1,0 +1,196 @@
+{
+  "id": "ed4m",
+  "version": 2,
+  "source": "art/vehicles/ed4m/ed4m.blend",
+  "projection": {
+    "type": "orthographic",
+    "tile_ratio": [
+      2,
+      1
+    ],
+    "elevation_degrees": 30
+  },
+  "frame_size": [
+    1024,
+    1024
+  ],
+  "pivot_px": [
+    512.0,
+    580.974
+  ],
+  "alpha": "straight",
+  "pixels_per_metre": 37.925925925925924,
+  "length_m": 21.5,
+  "coupling_pitch_m": 22.35,
+  "directions": [
+    {
+      "name": "s",
+      "grid_delta": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "sw",
+      "grid_delta": [
+        -1,
+        1
+      ]
+    },
+    {
+      "name": "w",
+      "grid_delta": [
+        -1,
+        0
+      ]
+    },
+    {
+      "name": "nw",
+      "grid_delta": [
+        -1,
+        -1
+      ]
+    },
+    {
+      "name": "n",
+      "grid_delta": [
+        0,
+        -1
+      ]
+    },
+    {
+      "name": "ne",
+      "grid_delta": [
+        1,
+        -1
+      ]
+    },
+    {
+      "name": "e",
+      "grid_delta": [
+        1,
+        0
+      ]
+    },
+    {
+      "name": "se",
+      "grid_delta": [
+        1,
+        1
+      ]
+    }
+  ],
+  "parts": {
+    "head": {
+      "model": "models/ed4m_head.glb",
+      "frames": [
+        {
+          "direction": "s",
+          "file": "sprites/ed4m_head_s.png"
+        },
+        {
+          "direction": "sw",
+          "file": "sprites/ed4m_head_sw.png"
+        },
+        {
+          "direction": "w",
+          "file": "sprites/ed4m_head_w.png"
+        },
+        {
+          "direction": "nw",
+          "file": "sprites/ed4m_head_nw.png"
+        },
+        {
+          "direction": "n",
+          "file": "sprites/ed4m_head_n.png"
+        },
+        {
+          "direction": "ne",
+          "file": "sprites/ed4m_head_ne.png"
+        },
+        {
+          "direction": "e",
+          "file": "sprites/ed4m_head_e.png"
+        },
+        {
+          "direction": "se",
+          "file": "sprites/ed4m_head_se.png"
+        }
+      ]
+    },
+    "motor": {
+      "model": "models/ed4m_motor.glb",
+      "frames": [
+        {
+          "direction": "s",
+          "file": "sprites/ed4m_motor_s.png"
+        },
+        {
+          "direction": "sw",
+          "file": "sprites/ed4m_motor_sw.png"
+        },
+        {
+          "direction": "w",
+          "file": "sprites/ed4m_motor_w.png"
+        },
+        {
+          "direction": "nw",
+          "file": "sprites/ed4m_motor_nw.png"
+        },
+        {
+          "direction": "n",
+          "file": "sprites/ed4m_motor_n.png"
+        },
+        {
+          "direction": "ne",
+          "file": "sprites/ed4m_motor_ne.png"
+        },
+        {
+          "direction": "e",
+          "file": "sprites/ed4m_motor_e.png"
+        },
+        {
+          "direction": "se",
+          "file": "sprites/ed4m_motor_se.png"
+        }
+      ]
+    },
+    "trailer": {
+      "model": "models/ed4m_trailer.glb",
+      "frames": [
+        {
+          "direction": "s",
+          "file": "sprites/ed4m_trailer_s.png"
+        },
+        {
+          "direction": "sw",
+          "file": "sprites/ed4m_trailer_sw.png"
+        },
+        {
+          "direction": "w",
+          "file": "sprites/ed4m_trailer_w.png"
+        },
+        {
+          "direction": "nw",
+          "file": "sprites/ed4m_trailer_nw.png"
+        },
+        {
+          "direction": "n",
+          "file": "sprites/ed4m_trailer_n.png"
+        },
+        {
+          "direction": "ne",
+          "file": "sprites/ed4m_trailer_ne.png"
+        },
+        {
+          "direction": "e",
+          "file": "sprites/ed4m_trailer_e.png"
+        },
+        {
+          "direction": "se",
+          "file": "sprites/ed4m_trailer_se.png"
+        }
+      ]
+    }
+  }
+}
