@@ -40,33 +40,36 @@ def material(name, color, metallic=0, roughness=.65, variation=.035):
 
 # Linear shader colours chosen to keep the reference's muted green under daylight.
 M={
- 'green':material('01 / faded bottle green',(.075,.12,.07),.16,.7),
- 'green_light':material('02 / raised body details',(.10,.15,.09),.12,.68),
+ 'green':material('01 / faded bottle green',(.10,.16,.09),.16,.7),
+ 'green_light':material('02 / raised body details',(.105,.165,.094),.12,.68),
  'green_dark':material('03 / door recesses',(.065,.102,.067),.12,.75,.015),
  'cream':material('04 / warm ivory trim',(.60,.57,.44),.1,.68,.025),
- 'roof':material('05 / zinc grey roof',(.18,.20,.19),.35,.72,.025),
- 'steel':material('06 / underframe steel',(.085,.097,.095),.48,.73,.015),
+ 'roof':material('05 / zinc grey roof',(.23,.24,.23),.35,.72,.025),
+ 'steel':material('06 / underframe steel',(.035,.045,.045),.62,.52,.010),
  'black':material('07 / rubber and gaskets',(.018,.023,.025),.02,.85,.005),
- 'glass':material('08 / opaque blue smoke glass',(.065,.107,.127),.26,.27,.005),
- 'glass_light':material('09 / glass reflection',(.145,.207,.222),.2,.33,.005),
+ 'glass':material('08 / opaque blue smoke glass',(.045,.073,.085),.15,.19,.003),
+ 'glass_light':material('09 / glass reflection',(.08,.12,.13),.15,.22,.003),
  'orange':material('10 / vermilion warning paint',(.58,.065,.022),.08,.68,.02),
  'lamp':material('11 / headlight lens',(.78,.72,.49),.1,.25,.005),
  'red':material('12 / tail light lens',(.46,.018,.012),.2,.28,.005),
  'copper':material('13 / pantograph red steel',(.27,.071,.026),.45,.62,.015),
  'insulator':material('14 / glazed brown ceramic',(.18,.095,.052),.15,.35,.01),
  'aluminium':material('15 / window metal frames',(.42,.43,.38),.65,.43,.01),
- 'dust':material('16 / brake dust',(.19,.17,.12),.15,.8,.015),
+ 'dust':material('16 / brake dust',(.09,.075,.05),.15,.8,.010),
 }
 
 ACTIVE=None
+exec(compile((ART/'materials_detail.py').read_text(encoding='utf-8'),str(ART/'materials_detail.py'),'exec'),globals())
 def finish(obj, name, mat, bevel=0, parent=True):
     obj.name=name
     if mat: obj.data.materials.append(M[mat] if isinstance(mat,str) else mat)
     if parent and ACTIVE: obj.parent=ACTIVE
     if bevel:
+        for face in obj.data.polygons:face.use_smooth=True
         mod=obj.modifiers.new('Small manufactured edge','BEVEL')
-        mod.width=bevel;mod.segments=2
+        mod.width=bevel;mod.segments=3;mod.harden_normals=True
         mod=obj.modifiers.new('Weighted corner normals','WEIGHTED_NORMAL')
+        mod.keep_sharp=True
     return obj
 
 def box(name, loc, size, mat, bevel=.015):
@@ -103,6 +106,16 @@ def cyl(name, a, b, radius, mat, sides=10):
 def path(name, coords, radius, mat):
     for i in range(len(coords)-1): cyl(name+f'.{i}',coords[i],coords[i+1],radius,mat,8)
 
+def coil(name,loc,radius=.13,height=.39):
+    curve=bpy.data.curves.new(name,'CURVE');curve.dimensions='3D'
+    curve.bevel_depth=.024;curve.bevel_resolution=2
+    spline=curve.splines.new('POLY');spline.points.add(79)
+    for i,point in enumerate(spline.points):
+        t=i/79;angle=t*math.tau*3.5
+        point.co=(loc[0]+radius*math.cos(angle),loc[1]+radius*math.sin(angle),loc[2]+height*t,1)
+    obj=bpy.data.objects.new(name,curve);bpy.context.collection.objects.link(obj)
+    return finish(obj,name,'steel')
+
 def ring_front(name, points, border, y, mat):
     # Flat ring on the X/Z front plane; constant-width-enough art trim.
     cx=sum(p[0] for p in points)/len(points)
@@ -126,13 +139,15 @@ def text_obj(name, text, loc, size, mat, front=True, side=1):
     else: obj.rotation_euler=(math.pi/2,0,side*math.pi/2)
     return finish(obj,name,mat)
 
-def roof():
+def roof(kind):
     # A faceted elliptic crown produces readable highlights without a bevelled toy roof.
     profile=[(-1.77,3.43),(-1.72,3.64),(-1.57,3.83),(-1.27,4.00),(-.80,4.10),(0,4.14),(.80,4.10),(1.27,4),(1.57,3.83),(1.72,3.64),(1.77,3.43)]
-    verts=[(x,y,z) for y in [-10.51,10.51] for x,z in profile]
+    front=-9.35 if kind=='head' else -10.51
+    verts=[(x,y,z) for y in [front,10.51] for x,z in profile]
     n=len(profile)
     faces=[(i,i+1,i+1+n,i+n) for i in range(n-1)]+[tuple(range(n-1,-1,-1)),tuple(range(n,2*n)),(0,n,2*n-1,n-1)]
     obj=mesh('Continuous elliptical steel roof',verts,faces,'roof')
+    for face in obj.data.polygons[:n-1]:face.use_smooth=True
     mod=obj.modifiers.new('Roof edge','BEVEL');mod.width=.025;mod.segments=2
     for y in [-9,-6,-3,0,3,6,9]:
         path('Roof sheet seam',[(x,y,z+.012) for x,z in profile[1:-1]],.012,'roof')
@@ -143,15 +158,27 @@ def roof():
 def bogie(y):
     box('Bogie bolster',(0,y,.72),(2.47,2.8,.40),'steel',.08)
     for side in [-1,1]:
-        box('Bogie side frame',(side*1.13,y,.62),(.20,3.55,.25),'steel',.05)
+        box('Cast bogie upper frame',(side*1.53,y,.91),(.20,3.55,.16),'steel',.055)
+        box('Cast bogie lower frame',(side*1.53,y,.51),(.19,2.85,.12),'steel',.045)
+        for yy in [y-1.15,y,y+1.15]:
+            cyl('Cast frame cross brace',(side*1.53,yy-.16,.54),(side*1.53,yy+.12,.91),.085,'steel',16)
         for ax in [-1.15,1.15]:
             yy=y+ax
-            cyl('Wheel tread',(side*.91,yy,.50),(side*1.27,yy,.50),.49,'steel',16)
-            cyl('Wheel face',(side*1.275,yy,.50),(side*1.30,yy,.50),.34,'dust',16)
-            box('Axlebox',(side*1.34,yy,.52),(.19,.38,.28),'steel',.035)
+            cyl('Wheel tread',(side*1.10,yy,.50),(side*1.45,yy,.50),.49,'steel',32)
+            cyl('Wheel machined rim',(side*1.455,yy,.50),(side*1.48,yy,.50),.43,'steel',32)
+            cyl('Wheel recessed face',(side*1.485,yy,.50),(side*1.50,yy,.50),.33,'dust',32)
+            box('Axlebox',(side*1.63,yy,.52),(.20,.39,.29),'steel',.05)
+            cyl('Axle bearing cover',(side*1.74,yy,.52),(side*1.78,yy,.52),.105,'steel',24)
         for yy in [y-.7,y+.7]:
-            for zz in [.64,.72,.80,.88]:
-                cyl('Suspension coil',(side*1.14,yy,zz),(side*1.14,yy,zz+.035),.15,'dust',8)
+            coil('Helical primary suspension',(side*1.57,yy,.57))
+            cyl('Suspension upper spring seat',(side*1.57,yy,.96),(side*1.57,yy,.99),.18,'steel',20)
+            cyl('Suspension lower spring seat',(side*1.57,yy,.54),(side*1.57,yy,.57),.18,'steel',20)
+        cyl('Bogie damper',(side*1.30,y-.33,.56),(side*1.30,y-.14,1.0),.065,'steel',16)
+        for yy in [y-1.45,y+1.45]:
+            box('Brake shoe carrier',(side*1.12,yy,.51),(.14,.16,.37),'steel',.025)
+        path('Brake rigging',[(side*1.24,y-1.45,.56),(side*1.24,y,.39),(side*1.24,y+1.45,.56)],.033,'steel')
+        for yy in [y-1.5,y-.9,y-.3,y+.3,y+.9,y+1.5]:
+            cyl('Bogie frame fastener',(side*1.64,yy,.91),(side*1.68,yy,.91),.040,'dust',12)
     for yy in [y-1.15,y+1.15]: cyl('Axle',(-1.1,yy,.5),(1.1,yy,.5),.095,'steel')
 
 def gangway(y):
@@ -213,55 +240,8 @@ def pantograph():
         for z in [4.25,4.36,4.47]: cyl('HV column skirt',(.73,y,z),(.73,y,z+.03),.145,'insulator')
     path('Roof HV bus',[(.73,-4.5,4.58),(.73,4.8,4.58),(.73,6,4.58)],.025,'copper')
 
-def cab():
-    y=-10.67
-    box('Rounded ED4M front',(0,y,2.48),(3.45,.31,2.85),'green',.23)
-    # Signature pale continuous border around the two front windows.
-    outline=[(-1.39,1.64),(-1.60,1.85),(-1.60,3.48),(-1.47,3.75),(-1.15,3.90),(1.15,3.90),(1.47,3.75),(1.60,3.48),(1.60,1.85),(1.39,1.64)]
-    ring_front('Cream wraparound cab border',outline,.14,-10.843,'cream')
-    poly('Cream lower front band',[(-1.48,-10.85,1.61),(1.48,-10.85,1.61),(1.48,-10.85,1.97),(-1.48,-10.85,1.97)],'cream')
-    for side in [-1,1]:
-        # Two distinct windscreens with raised/slanted inner corners, early ED4M.
-        points=[(.12,2.45),(1.36,2.45),(1.36,3.36),(1.23,3.58),(.43,3.67),(.12,3.43)]
-        points=[(x*side,z) for x,z in points]
-        poly('Windscreen dark gasket',[(x,-10.87,z) for x,z in points],'black')
-        ring_front('Windscreen metal rim',points,.045,-10.885,'aluminium')
-        cx=sum(x for x,z in points)/len(points);cz=sum(z for x,z in points)/len(points)
-        glass=[(cx+(x-cx)*.91,cz+(z-cz)*.91) for x,z in points]
-        poly('Cab windscreen',[(x,-10.889,z) for x,z in glass],'glass')
-        poly('Windshield subtle reflection',[(side*.20,-10.894,3.30),(side*1.28,-10.894,3.30),(side*1.25,-10.894,3.47),(side*.43,-10.894,3.57)],'glass_light')
-        box('Destination display',(side*.74,-10.902,3.39),(.87,.015,.12),'black',.015)
-        path('Windscreen wiper',[(side*.39,-10.93,2.49),(side*.63,-10.93,2.85),(side*.69,-10.93,3.03)],.018,'black')
-        box('Low marker light housing',(side*1.15,-10.93,2.15),(.47,.16,.25),'cream',.055)
-        for dx,mat in [(-.105,'lamp'),(.105,'red')]:
-            cyl('White or red marker lens',(side*1.15+dx,-11.025,2.15),(side*1.15+dx,-11.055,2.15),.070,mat,12)
-        for x in [side*1.0,side*1.17,side*1.30]:
-            path('Marker light guard',[(x,-11.07,2.04),(x,-11.09,2.27)],.011,'steel')
-        box('Cab side window gasket',(side*1.783,-9.90,2.99),(.045,.77,.88),'black',.065)
-        box('Cab side glass',(side*1.812,-9.90,2.99),(.018,.65,.75),'glass',.04)
-        side_rect('Cab side cream accent',side,-9.88,2.17,.81,.12,'cream',.06,.01)
-        cyl('Side mirror stem',(side*1.74,-10.3,3.30),(side*2.02,-10.42,3.29),.02,'steel')
-        box('Side mirror',(side*2.04,-10.43,3.28),(.10,.08,.22),'steel',.025)
-    tri=[(-.19,3.70),(0,3.48),(.19,3.70)]
-    poly('Upper triangular headlight recess',[(x,-10.9,z) for x,z in tri],'black')
-    cyl('Top centre headlamp',(0,-10.91,3.635),(0,-10.95,3.635),.086,'lamp',12)
-    # Front apron with recognisable red/orange V warning chevrons.
-    poly('Front pilot',[(-1.48,-10.87,.57),(1.48,-10.87,.57),(1.65,-10.87,1.45),(-1.65,-10.87,1.45)],'green')
-    for side in [-1,1]:
-        for off in [0,.58]:
-            pts=[(.10+off,.64),(.43+off,.64),(1.28+off,1.43),(.95+off,1.43)]
-            pts=[(side*min(x,1.60),-10.89,z) for x,z in pts]
-            poly('Vermilion warning chevron',pts,'orange')
-    coupler(-10.88,-1)
-    for side in [-1,1]:
-        path('Brake hose',[(side*.30,-11.04,1.11),(side*.48,-11.17,.85),(side*.40,-11.10,.62),(side*.19,-11.10,.66)],.035,'black')
-    box('Front central equipment hatch',(0,-10.91,1.48),(.70,.13,.28),'steel',.02)
-    text_obj('Front series marking','ЭД4М',(-.94,-10.91,1.74),.16,'green_dark')
-    text_obj('Fleet number','0138',(.96,-10.91,1.74),.16,'green_dark')
-    # Low roof equipment, no pantograph on a driving trailer.
-    box('Cab roof ventilation pack',(0,-8.8,4.31),(1.2,1.1,.25),'roof',.035)
-    for x in [-.4,-.2,0,.2,.4]: box('Cab roof intake ribs',(x,-8.8,4.445),(.065,.87,.025),'steel',0)
-    cyl('Cab roof radio aerial',(0,-10,4.06),(0,-10,4.53),.018,'steel',8)
+# Override the first prototype's planar front with the photographic profile.
+exec(compile((ART/'cab_geometry.py').read_text(encoding='utf-8'),str(ART/'cab_geometry.py'),'exec'),globals())
 
 def build(kind):
     global ACTIVE
@@ -270,14 +250,16 @@ def build(kind):
     ACTIVE['forward']='-Y';ACTIVE['units']='metres';ACTIVE['art_length_m']=21.5
     bpy.context.collection.objects.link(ACTIVE)
     box('Underframe sill',(0,0,1.08),(3.36,21.1,.27),'steel',.065)
-    box('Ribbed steel body',(0,0,2.42),(3.50,21.0,2.55),'green',.10)
-    roof()
+    front=-9.35 if kind=='head' else -10.5
+    box('Ribbed steel body',(0,(front+10.5)/2,2.42),(3.50,10.5-front,2.55),'green',.10)
+    roof(kind)
     for side in [-1,1]:
-        side_rect('Cream window belt',side,0,2.93,20.8,1.13,'cream',.012,.025)
-        side_rect('Roof side drip rail',side,0,3.51,20.9,.065,'green_dark',.045,.01)
-        side_rect('Lower cream keyline',side,0,2.29,20.8,.055,'cream',.028,0)
+        center=(front+10.4)/2;span=10.4-front
+        side_rect('Cream window belt',side,center,2.93,span,1.13,'cream',.012,.025)
+        side_rect('Roof side drip rail',side,center,3.51,span,.065,'green_dark',.045,.01)
+        side_rect('Lower cream keyline',side,center,2.29,span,.055,'cream',.028,0)
         # Driving trailer has a short cab zone and the near passenger vestibule set back.
-        doors=[-8.20,8.78] if kind=='head' else [-8.78,8.78]
+        doors=[-8.05,8.78] if kind=='head' else [-8.78,8.78]
         for y in doors: door(side,y)
         for y in [-6.53,-4.91,-3.29,-1.67,-.05,1.57,3.19,4.81,6.43]: window(side,y)
         for z in [1.36,1.52,1.68,1.84,2.00,2.13]:
@@ -309,51 +291,17 @@ def show_only(kind):
         root.location=(0,0,0);root.rotation_euler=(0,0,0)
         for obj in children(root): obj.hide_render=k!=kind
 
-# Solid PBR values are exported to glTF; subtle procedural paint noise is render-only.
-def export_glbs():
-    for k,root in parts.items():
-        bpy.context.view_layer.update()
-        depsgraph=bpy.context.evaluated_depsgraph_get()
-        groups={}
-        for obj in children(root):
-            if obj.type not in {'MESH','FONT'}: continue
-            use_modifiers=obj.type=='FONT' or obj.name.startswith(('Ribbed steel body','Rounded ED4M front','Continuous elliptical steel roof'))
-            evaluated=obj.evaluated_get(depsgraph) if use_modifiers else None
-            geo=evaluated.to_mesh() if evaluated else obj.data
-            if geo is None: continue
-            mat=obj.data.materials[0]
-            verts,faces=groups.setdefault(mat.name,([],[]))
-            offset=len(verts)
-            verts.extend(tuple(obj.matrix_world @ v.co) for v in geo.vertices)
-            faces.extend(tuple(offset+i for i in face.vertices) for face in geo.polygons)
-            if evaluated: evaluated.to_mesh_clear()
-        combined=[]
-        export_materials=[]
-        for mat_name,(verts,faces) in groups.items():
-            source_mat=bpy.data.materials[mat_name]
-            game_mat=source_mat.copy();game_mat.name=mat_name+' / game PBR'
-            base=game_mat.node_tree.nodes.get('Principled BSDF').inputs['Base Color']
-            for link in list(base.links): game_mat.node_tree.links.remove(link)
-            base.default_value=source_mat.diffuse_color
-            export_materials.append(game_mat)
-            data=bpy.data.meshes.new(k+' / '+mat_name)
-            data.from_pydata(verts,[],faces);data.materials.append(game_mat);data.update()
-            obj=bpy.data.objects.new(k+' / '+mat_name,data)
-            bpy.context.collection.objects.link(obj)
-            combined.append(obj)
-        bpy.ops.object.select_all(action='DESELECT')
-        for obj in combined: obj.select_set(True)
-        bpy.context.view_layer.objects.active=combined[0]
-        bpy.ops.export_scene.gltf(filepath=str(OUT/'models'/f'ed4m_{k}.glb'),export_format='GLB',use_selection=True,export_apply=True,export_materials='EXPORT',export_cameras=False,export_lights=False)
-        for obj in combined: bpy.data.objects.remove(obj,do_unlink=True)
-        for mat in export_materials: bpy.data.materials.remove(mat)
-
-export_glbs()
+exec(compile((ART/'export_detail.py').read_text(encoding='utf-8'),str(ART/'export_detail.py'),'exec'),globals())
+if '--review-only' not in sys.argv:
+    export_glbs()
 
 scene=bpy.context.scene
 scene.render.engine='CYCLES'
-scene.cycles.samples=32
+scene.cycles.samples=64
 scene.cycles.use_denoising=True
+scene.cycles.max_bounces=6
+scene.cycles.diffuse_bounces=3
+scene.cycles.glossy_bounces=3
 scene.render.image_settings.file_format='PNG'
 scene.render.image_settings.color_mode='RGBA'
 scene.render.film_transparent=True
@@ -383,16 +331,46 @@ def set_camera(target,scale):
     camera.rotation_euler=(target-camera.location).to_track_quat('-Z','Y').to_euler()
     camera.data.ortho_scale=scale
 
+if '--review-only' in sys.argv or '--review-and-build' in sys.argv:
+    show_only('head')
+    floor_mat=material('Review warm grey ground',(.38,.36,.32),0,.85,.004)
+    floor=box('Review ground',(0,0,-.22),(1000,1000,.2),floor_mat,.01)
+    scene.render.film_transparent=False
+    scene.render.resolution_x=2560;scene.render.resolution_y=1440
+    scene.cycles.samples=32 if '--head-update' in sys.argv else 64
+    set_camera((0,-.3,2),23)
+    scene.render.filepath=str(ART/'ed4m-v02-full.png')
+    bpy.ops.render.render(write_still=True)
+    scene.render.resolution_x=2048;scene.render.resolution_y=1536
+    scene.cycles.samples=64
+    target=Vector((0,-8.7,2.1));camera.location=target+Vector((18,-24,14))
+    camera.rotation_euler=(target-camera.location).to_track_quat('-Z','Y').to_euler();camera.data.ortho_scale=8.3
+    scene.render.filepath=str(ART/'ed4m-v02-cab.png')
+    bpy.ops.render.render(write_still=True)
+    target=Vector((0,-8.3,2.15));camera.location=target+Vector((30,0,0))
+    camera.rotation_euler=(target-camera.location).to_track_quat('-Z','Y').to_euler();camera.data.ortho_scale=8.3
+    scene.render.filepath=str(ART/'ed4m-v02-profile.png')
+    scene.cycles.samples=32
+    bpy.ops.render.render(write_still=True)
+    bpy.ops.wm.save_as_mainfile(filepath=str(ART/'ed4m-v02-review.blend'))
+    print('ED4M_REVIEW_COMPLETE',flush=True)
+    if '--review-only' in sys.argv:
+        sys.exit(0)
+    floor.hide_render=True
+    scene.render.film_transparent=True
+    scene.cycles.samples=64
+
 set_camera((0,0,2.1),27)
-scene.render.resolution_x=512;scene.render.resolution_y=512
+SPRITE_SIZE=1024
+scene.render.resolution_x=SPRITE_SIZE;scene.render.resolution_y=SPRITE_SIZE
 bpy.context.view_layer.update()
 p=world_to_camera_view(scene,camera,Vector((0,0,0)))
-pivot=[round(p.x*512,3),round((1-p.y)*512,3)]
+pivot=[round(p.x*SPRITE_SIZE,3),round((1-p.y)*SPRITE_SIZE,3)]
 directions=[('s',0,1),('sw',-1,1),('w',-1,0),('nw',-1,-1),('n',0,-1),('ne',1,-1),('e',1,0),('se',1,1)]
 manifest={
- 'id':'ed4m','version':1,'source':'art/vehicles/ed4m/ed4m.blend',
+ 'id':'ed4m','version':2,'source':'art/vehicles/ed4m/ed4m.blend',
  'projection':{'type':'orthographic','tile_ratio':[2,1],'elevation_degrees':30},
- 'frame_size':[512,512],'pivot_px':pivot,'alpha':'straight','pixels_per_metre':512/27,
+ 'frame_size':[SPRITE_SIZE,SPRITE_SIZE],'pivot_px':pivot,'alpha':'straight','pixels_per_metre':SPRITE_SIZE/27,
  'length_m':21.5,'coupling_pitch_m':22.35,
  'directions':[{'name':n,'grid_delta':[dx,dy]} for n,dx,dy in directions],
  'parts':{}
@@ -404,7 +382,7 @@ for kind,root in parts.items():
         root.rotation_euler.z=math.atan2(dx,dy)
         path_out=OUT/'sprites'/f'ed4m_{kind}_{name}.png'
         scene.render.filepath=str(path_out)
-        if '--model-only' not in sys.argv:
+        if '--model-only' not in sys.argv and not ('--head-update' in sys.argv and kind!='head'):
             bpy.ops.render.render(write_still=True)
         frames.append({'direction':name,'file':f'sprites/{path_out.name}'})
     manifest['parts'][kind]={'model':f'models/ed4m_{kind}.glb','frames':frames}
@@ -437,7 +415,7 @@ scene.render.resolution_x=1920;scene.render.resolution_y=1080
 scene.cycles.samples=64
 set_camera((0,-1,1.9),87)
 scene.render.filepath=str(ART/'ed4m-preview.png')
-if '--model-only' not in sys.argv:
+if '--model-only' not in sys.argv and '--skip-hero' not in sys.argv:
     bpy.ops.render.render(write_still=True)
 
 # Save a usable, arranged master. Presentation objects live in their own collection.
@@ -468,6 +446,4 @@ for area in bpy.context.screen.areas:
         area.spaces.active.shading.color_type='MATERIAL'
         area.spaces.active.clip_end=1000
 bpy.ops.wm.save_as_mainfile(filepath=str(ART/'ed4m.blend'))
-stats={k:{'objects':len(children(root)),'mesh_triangles':sum(len(o.data.polygons)*2 for o in children(root) if o.type=='MESH')} for k,root in parts.items()}
-(ART/'build-stats.json').write_text(json.dumps(stats,indent=2),encoding='utf-8')
-print('ED4M_BUILD_COMPLETE',json.dumps(stats),flush=True)
+print('ED4M_BUILD_COMPLETE',flush=True)

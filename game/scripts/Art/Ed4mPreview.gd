@@ -37,6 +37,7 @@ func _create_model_view() -> void:
 	add_child(_viewport_container)
 	var viewport := SubViewport.new()
 	viewport.size = Vector2i(1260, 680)
+	viewport.msaa_3d = Viewport.MSAA_4X
 	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	viewport.own_world_3d = true
 	_viewport_container.add_child(viewport)

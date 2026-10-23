@@ -1,6 +1,6 @@
 {
   "id": "ed4m",
-  "version": 1,
+  "version": 2,
   "source": "art/vehicles/ed4m/ed4m.blend",
   "projection": {
     "type": "orthographic",
@@ -11,15 +11,15 @@
     "elevation_degrees": 30
   },
   "frame_size": [
-    512,
-    512
+    1024,
+    1024
   ],
   "pivot_px": [
-    256.0,
-    290.487
+    512.0,
+    580.974
   ],
   "alpha": "straight",
-  "pixels_per_metre": 18.962962962962962,
+  "pixels_per_metre": 37.925925925925924,
   "length_m": 21.5,
   "coupling_pitch_m": 22.35,
   "directions": [
