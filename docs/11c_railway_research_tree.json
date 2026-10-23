@@ -1,0 +1,880 @@
+{
+  "schema_version": "0.1",
+  "status": "draft",
+  "method": "World of Tanks-style DAG; individual rolling-stock families",
+  "notes": [
+    "Связи — игровые предпосылки, не утверждение исторической преемственности.",
+    "Одного изученного предшественника достаточно для разблокировки следующей модели (ИЛИ); ограничения по времени и инфраструктуре рассматриваются отдельно.",
+    "Названия веток отражают транспортные школы, но не запрещают иное назначение подвижного состава.",
+    "Годы ориентировочные и не равны автоматически году открытия в игре.",
+    "Модель «Белый кречет» — перспективный проект, а не подтверждённая серийная машина."
+  ],
+  "nodes": [
+    {
+      "id": "ov",
+      "name": "Ов (ранний парк)",
+      "year": 1890,
+      "branch": "steam"
+    },
+    {
+      "id": "e",
+      "name": "Э",
+      "year": 1912,
+      "branch": "steam"
+    },
+    {
+      "id": "su",
+      "name": "Су",
+      "year": 1924,
+      "branch": "steam"
+    },
+    {
+      "id": "fd",
+      "name": "ФД",
+      "year": 1931,
+      "branch": "steam"
+    },
+    {
+      "id": "is",
+      "name": "ИС",
+      "year": 1932,
+      "branch": "steam"
+    },
+    {
+      "id": "so",
+      "name": "СО",
+      "year": 1934,
+      "branch": "steam"
+    },
+    {
+      "id": "l",
+      "name": "Л",
+      "year": 1945,
+      "branch": "steam"
+    },
+    {
+      "id": "p36",
+      "name": "П36",
+      "year": 1950,
+      "branch": "steam"
+    },
+    {
+      "id": "te1",
+      "name": "ТЭ1",
+      "year": 1947,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te2",
+      "name": "ТЭ2",
+      "year": 1948,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te3",
+      "name": "ТЭ3",
+      "year": 1953,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te10",
+      "name": "ТЭ10",
+      "year": 1958,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te210",
+      "name": "2ТЭ10",
+      "year": 1960,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "m62",
+      "name": "М62",
+      "year": 1965,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te116",
+      "name": "2ТЭ116",
+      "year": 1971,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te121",
+      "name": "2ТЭ121",
+      "year": 1981,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te25km",
+      "name": "2ТЭ25КМ",
+      "year": 2014,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "te28",
+      "name": "3ТЭ28",
+      "year": 2022,
+      "branch": "main_diesel"
+    },
+    {
+      "id": "tep10",
+      "name": "ТЭП10",
+      "year": 1960,
+      "branch": "pass_diesel"
+    },
+    {
+      "id": "tep60",
+      "name": "ТЭП60",
+      "year": 1960,
+      "branch": "pass_diesel"
+    },
+    {
+      "id": "tep70",
+      "name": "ТЭП70",
+      "year": 1973,
+      "branch": "pass_diesel"
+    },
+    {
+      "id": "tep70bs",
+      "name": "ТЭП70БС",
+      "year": 2002,
+      "branch": "pass_diesel"
+    },
+    {
+      "id": "tgm1",
+      "name": "ТГМ1",
+      "year": 1956,
+      "branch": "shunt"
+    },
+    {
+      "id": "tem1",
+      "name": "ТЭМ1",
+      "year": 1958,
+      "branch": "shunt"
+    },
+    {
+      "id": "chme2",
+      "name": "ЧМЭ2",
+      "year": 1958,
+      "branch": "shunt"
+    },
+    {
+      "id": "tem2",
+      "name": "ТЭМ2",
+      "year": 1960,
+      "branch": "shunt"
+    },
+    {
+      "id": "chme3",
+      "name": "ЧМЭ3",
+      "year": 1963,
+      "branch": "shunt"
+    },
+    {
+      "id": "tem7",
+      "name": "ТЭМ7",
+      "year": 1973,
+      "branch": "shunt"
+    },
+    {
+      "id": "tem18dm",
+      "name": "ТЭМ18ДМ",
+      "year": 2008,
+      "branch": "shunt"
+    },
+    {
+      "id": "tem23",
+      "name": "ТЭМ23",
+      "year": 2022,
+      "branch": "shunt"
+    },
+    {
+      "id": "vl22m",
+      "name": "ВЛ22м",
+      "year": 1947,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "vl8",
+      "name": "ВЛ8",
+      "year": 1955,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "vl10",
+      "name": "ВЛ10",
+      "year": 1961,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "vl11",
+      "name": "ВЛ11",
+      "year": 1975,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "es4k",
+      "name": "2ЭС4К «Дончак»",
+      "year": 2006,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "es6",
+      "name": "2ЭС6 «Синара»",
+      "year": 2006,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "es10",
+      "name": "2ЭС10 «Гранит»",
+      "year": 2010,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "es8",
+      "name": "3ЭС8 «Малахит»",
+      "year": 2023,
+      "branch": "freight_dc"
+    },
+    {
+      "id": "vl60",
+      "name": "ВЛ60",
+      "year": 1957,
+      "branch": "freight_ac"
+    },
+    {
+      "id": "vl80",
+      "name": "ВЛ80",
+      "year": 1963,
+      "branch": "freight_ac"
+    },
+    {
+      "id": "vl85",
+      "name": "ВЛ85",
+      "year": 1983,
+      "branch": "freight_ac"
+    },
+    {
+      "id": "es5k",
+      "name": "2ЭС5К «Ермак»",
+      "year": 2004,
+      "branch": "freight_ac"
+    },
+    {
+      "id": "chs2",
+      "name": "ЧС2",
+      "year": 1958,
+      "branch": "pass_dc"
+    },
+    {
+      "id": "chs7",
+      "name": "ЧС7",
+      "year": 1983,
+      "branch": "pass_dc"
+    },
+    {
+      "id": "ep2k",
+      "name": "ЭП2К",
+      "year": 2006,
+      "branch": "pass_dc"
+    },
+    {
+      "id": "chs4t",
+      "name": "ЧС4Т",
+      "year": 1971,
+      "branch": "pass_ac"
+    },
+    {
+      "id": "chs8",
+      "name": "ЧС8",
+      "year": 1983,
+      "branch": "pass_ac"
+    },
+    {
+      "id": "ep1",
+      "name": "ЭП1 (семейство)",
+      "year": 1998,
+      "branch": "pass_ac"
+    },
+    {
+      "id": "ep20",
+      "name": "ЭП20",
+      "year": 2012,
+      "branch": "pass_ac"
+    },
+    {
+      "id": "sr3",
+      "name": "Ср3",
+      "year": 1952,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "er1",
+      "name": "ЭР1",
+      "year": 1957,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "er2",
+      "name": "ЭР2",
+      "year": 1962,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "ed2t",
+      "name": "ЭД2Т",
+      "year": 1993,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "ed4m",
+      "name": "ЭД4М",
+      "year": 1998,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "ep2d",
+      "name": "ЭП2Д (семейство)",
+      "year": 2016,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "ivolga",
+      "name": "«Иволга» (семейство)",
+      "year": 2014,
+      "branch": "emu_dc"
+    },
+    {
+      "id": "er9",
+      "name": "ЭР9",
+      "year": 1962,
+      "branch": "emu_ac"
+    },
+    {
+      "id": "ed9m",
+      "name": "ЭД9М",
+      "year": 1995,
+      "branch": "emu_ac"
+    },
+    {
+      "id": "ep3d",
+      "name": "ЭП3Д",
+      "year": 2016,
+      "branch": "emu_ac"
+    },
+    {
+      "id": "dr1",
+      "name": "ДР1",
+      "year": 1963,
+      "branch": "regional"
+    },
+    {
+      "id": "d1",
+      "name": "Д1",
+      "year": 1964,
+      "branch": "regional"
+    },
+    {
+      "id": "ra2",
+      "name": "РА2",
+      "year": 2005,
+      "branch": "regional"
+    },
+    {
+      "id": "ra3",
+      "name": "РА3 «Орлан»",
+      "year": 2019,
+      "branch": "regional"
+    },
+    {
+      "id": "lastochka",
+      "name": "ЭС1 «Ласточка»",
+      "year": 2013,
+      "branch": "fast"
+    },
+    {
+      "id": "finist",
+      "name": "ЭС104 «Финист»",
+      "year": 2023,
+      "branch": "fast"
+    },
+    {
+      "id": "er200",
+      "name": "ЭР200",
+      "year": 1984,
+      "branch": "high_speed"
+    },
+    {
+      "id": "sapsan",
+      "name": "«Сапсан»",
+      "year": 2009,
+      "branch": "high_speed"
+    },
+    {
+      "id": "belkrechet",
+      "name": "«Белый кречет» (проект)",
+      "year": 2028,
+      "branch": "high_speed",
+      "status": "planned"
+    }
+  ],
+  "edges": [
+    {
+      "from": "ov",
+      "to": "e",
+      "type": "main"
+    },
+    {
+      "from": "ov",
+      "to": "su",
+      "type": "main"
+    },
+    {
+      "from": "e",
+      "to": "fd",
+      "type": "main"
+    },
+    {
+      "from": "e",
+      "to": "so",
+      "type": "main"
+    },
+    {
+      "from": "fd",
+      "to": "l",
+      "type": "main"
+    },
+    {
+      "from": "su",
+      "to": "is",
+      "type": "main"
+    },
+    {
+      "from": "is",
+      "to": "p36",
+      "type": "main"
+    },
+    {
+      "from": "l",
+      "to": "te1",
+      "type": "main"
+    },
+    {
+      "from": "te1",
+      "to": "te2",
+      "type": "main"
+    },
+    {
+      "from": "te2",
+      "to": "te3",
+      "type": "main"
+    },
+    {
+      "from": "te3",
+      "to": "te10",
+      "type": "main"
+    },
+    {
+      "from": "te10",
+      "to": "te210",
+      "type": "main"
+    },
+    {
+      "from": "te210",
+      "to": "te116",
+      "type": "main"
+    },
+    {
+      "from": "te116",
+      "to": "te121",
+      "type": "main"
+    },
+    {
+      "from": "te116",
+      "to": "te25km",
+      "type": "main"
+    },
+    {
+      "from": "te25km",
+      "to": "te28",
+      "type": "main"
+    },
+    {
+      "from": "te3",
+      "to": "m62",
+      "type": "main"
+    },
+    {
+      "from": "te3",
+      "to": "tep10",
+      "type": "main"
+    },
+    {
+      "from": "tep10",
+      "to": "tep60",
+      "type": "main"
+    },
+    {
+      "from": "tep60",
+      "to": "tep70",
+      "type": "main"
+    },
+    {
+      "from": "tep70",
+      "to": "tep70bs",
+      "type": "main"
+    },
+    {
+      "from": "te2",
+      "to": "tgm1",
+      "type": "main"
+    },
+    {
+      "from": "tgm1",
+      "to": "tem1",
+      "type": "main"
+    },
+    {
+      "from": "tem1",
+      "to": "tem2",
+      "type": "main"
+    },
+    {
+      "from": "tem1",
+      "to": "chme2",
+      "type": "main"
+    },
+    {
+      "from": "chme2",
+      "to": "chme3",
+      "type": "main"
+    },
+    {
+      "from": "tem2",
+      "to": "tem7",
+      "type": "main"
+    },
+    {
+      "from": "tem7",
+      "to": "tem18dm",
+      "type": "main"
+    },
+    {
+      "from": "tem18dm",
+      "to": "tem23",
+      "type": "main"
+    },
+    {
+      "from": "l",
+      "to": "vl22m",
+      "type": "main"
+    },
+    {
+      "from": "vl22m",
+      "to": "vl8",
+      "type": "main"
+    },
+    {
+      "from": "vl8",
+      "to": "vl10",
+      "type": "main"
+    },
+    {
+      "from": "vl10",
+      "to": "vl11",
+      "type": "main"
+    },
+    {
+      "from": "vl11",
+      "to": "es4k",
+      "type": "main"
+    },
+    {
+      "from": "vl11",
+      "to": "es6",
+      "type": "main"
+    },
+    {
+      "from": "es6",
+      "to": "es10",
+      "type": "main"
+    },
+    {
+      "from": "es10",
+      "to": "es8",
+      "type": "main"
+    },
+    {
+      "from": "vl8",
+      "to": "vl60",
+      "type": "main"
+    },
+    {
+      "from": "vl60",
+      "to": "vl80",
+      "type": "main"
+    },
+    {
+      "from": "vl80",
+      "to": "vl85",
+      "type": "main"
+    },
+    {
+      "from": "vl85",
+      "to": "es5k",
+      "type": "main"
+    },
+    {
+      "from": "p36",
+      "to": "chs2",
+      "type": "main"
+    },
+    {
+      "from": "chs2",
+      "to": "chs7",
+      "type": "main"
+    },
+    {
+      "from": "chs7",
+      "to": "ep2k",
+      "type": "main"
+    },
+    {
+      "from": "p36",
+      "to": "chs4t",
+      "type": "main"
+    },
+    {
+      "from": "chs4t",
+      "to": "chs8",
+      "type": "main"
+    },
+    {
+      "from": "chs8",
+      "to": "ep1",
+      "type": "main"
+    },
+    {
+      "from": "ep1",
+      "to": "ep20",
+      "type": "main"
+    },
+    {
+      "from": "p36",
+      "to": "sr3",
+      "type": "main"
+    },
+    {
+      "from": "sr3",
+      "to": "er1",
+      "type": "main"
+    },
+    {
+      "from": "er1",
+      "to": "er2",
+      "type": "main"
+    },
+    {
+      "from": "er2",
+      "to": "ed2t",
+      "type": "main"
+    },
+    {
+      "from": "ed2t",
+      "to": "ed4m",
+      "type": "main"
+    },
+    {
+      "from": "ed4m",
+      "to": "ep2d",
+      "type": "main"
+    },
+    {
+      "from": "ed4m",
+      "to": "ivolga",
+      "type": "main"
+    },
+    {
+      "from": "er1",
+      "to": "er9",
+      "type": "main"
+    },
+    {
+      "from": "er9",
+      "to": "ed9m",
+      "type": "main"
+    },
+    {
+      "from": "ed9m",
+      "to": "ep3d",
+      "type": "main"
+    },
+    {
+      "from": "su",
+      "to": "dr1",
+      "type": "main"
+    },
+    {
+      "from": "su",
+      "to": "d1",
+      "type": "main"
+    },
+    {
+      "from": "dr1",
+      "to": "ra2",
+      "type": "main"
+    },
+    {
+      "from": "ra2",
+      "to": "ra3",
+      "type": "main"
+    },
+    {
+      "from": "er2",
+      "to": "lastochka",
+      "type": "main"
+    },
+    {
+      "from": "lastochka",
+      "to": "finist",
+      "type": "main"
+    },
+    {
+      "from": "p36",
+      "to": "er200",
+      "type": "main"
+    },
+    {
+      "from": "er200",
+      "to": "sapsan",
+      "type": "main"
+    },
+    {
+      "from": "sapsan",
+      "to": "belkrechet",
+      "type": "main"
+    },
+    {
+      "from": "is",
+      "to": "er1",
+      "type": "cross",
+      "reason": "Переход от пассажирской паровой тяги к пригородным электричкам (игровая, не историческая замена)."
+    },
+    {
+      "from": "so",
+      "to": "te2",
+      "type": "cross",
+      "reason": "Массовая грузовая тяга → ранний магистральный дизель."
+    },
+    {
+      "from": "fd",
+      "to": "vl8",
+      "type": "cross",
+      "reason": "Тяжёлые поезда → электрификация грузовых магистралей."
+    },
+    {
+      "from": "te3",
+      "to": "vl10",
+      "type": "cross",
+      "reason": "Грузовые тепловозы → грузовая электротяга постоянного тока."
+    },
+    {
+      "from": "vl10",
+      "to": "vl80",
+      "type": "cross",
+      "reason": "Альтернативная школа электрификации переменного тока."
+    },
+    {
+      "from": "te3",
+      "to": "vl60",
+      "type": "cross",
+      "reason": "Дизельная магистраль → электрическая магистраль."
+    },
+    {
+      "from": "m62",
+      "to": "tep70",
+      "type": "cross",
+      "reason": "От универсальной дизельной тяги к современной пассажирской."
+    },
+    {
+      "from": "tep70",
+      "to": "ep2k",
+      "type": "cross",
+      "reason": "Пассажирские магистрали: дизель → электричество."
+    },
+    {
+      "from": "ep2k",
+      "to": "ep20",
+      "type": "cross",
+      "reason": "Переход к двухсистемному пассажирскому локомотиву."
+    },
+    {
+      "from": "tem2",
+      "to": "chme3",
+      "type": "cross",
+      "reason": "Выбор альтернативной школы маневровой техники."
+    },
+    {
+      "from": "chme3",
+      "to": "tem7",
+      "type": "cross",
+      "reason": "Тяжёлые манёвры через другую школу."
+    },
+    {
+      "from": "tem2",
+      "to": "tem18dm",
+      "type": "cross",
+      "reason": "Развитие современного парка без обязательного ТЭМ7."
+    },
+    {
+      "from": "te121",
+      "to": "te28",
+      "type": "cross",
+      "reason": "Поздняя тяжёлая дизельная тяга."
+    },
+    {
+      "from": "vl80",
+      "to": "es5k",
+      "type": "cross",
+      "reason": "Возможность выйти на «Ермак», минуя ВЛ85."
+    },
+    {
+      "from": "es6",
+      "to": "es8",
+      "type": "cross",
+      "reason": "«Малахит» как альтернатива прохождению через «Гранит»."
+    },
+    {
+      "from": "d1",
+      "to": "ra2",
+      "type": "cross",
+      "reason": "От региональных дизель-поездов к рельсовым автобусам."
+    },
+    {
+      "from": "ep2d",
+      "to": "finist",
+      "type": "cross",
+      "reason": "Современная региональная тяга через пригородную ветку."
+    },
+    {
+      "from": "er2",
+      "to": "er200",
+      "type": "cross",
+      "reason": "От массовой электрички к высокоскоростной линии."
+    },
+    {
+      "from": "chs7",
+      "to": "er200",
+      "type": "cross",
+      "reason": "Скоростная пассажирская школа."
+    },
+    {
+      "from": "ed4m",
+      "to": "lastochka",
+      "type": "cross",
+      "reason": "Альтернатива дальнейшему обычному пригородному развитию."
+    }
+  ]
+}
