@@ -13,7 +13,7 @@ public sealed record BuildPlan(IReadOnlyList<GridPos> Cells, IReadOnlyList<Build
     public bool CanBuild => Problems.Count == 0 && Cells.Count > 0;
 }
 
-/// <summary>План станции: полоса клеток, предприятие, к которому она примкнёт, и ось пути сквозь неё.</summary>
+/// <summary>План станции: прямоугольник клеток, предприятие, к которому она примкнёт, и ось путей сквозь неё.</summary>
 public sealed record StationPlan(
     StationDefinition Station,
     GridRect? Area,
@@ -23,6 +23,26 @@ public sealed record StationPlan(
 {
     public bool CanBuild => Problems.Count == 0 && Area is not null && Target is not null;
     public IReadOnlyList<GridPos> Cells => Area?.Cells().ToList() ?? [];
+
+    /// <summary>Длина платформы в клетках — вдоль путей.</summary>
+    public int Length => Area is { } a ? AlongX ? a.Width : a.Height : 0;
+
+    /// <summary>Число параллельных станционных путей — поперёк.</summary>
+    public int Tracks => Area is { } a ? AlongX ? a.Height : a.Width : 0;
+}
+
+/// <summary>План моста: опоры, все клетки от опоры до опоры; после постройки <see cref="Built"/> — созданный мост.</summary>
+public sealed record BridgePlan(BridgeDefinition Definition, IReadOnlyList<GridPos> Cells, IReadOnlyList<BuildProblem> Problems)
+{
+    public bool CanBuild => Problems.Count == 0 && Cells.Count >= 2;
+    public Bridge? Built { get; init; }
+}
+
+/// <summary>План сигнала: клетка и сигнал, который в ней встанет (null — поставить нельзя).</summary>
+public sealed record SignalPlan(SignalDefinition Definition, GridPos Cell, Signal? Signal, IReadOnlyList<BuildProblem> Problems)
+{
+    public bool CanBuild => Problems.Count == 0 && Signal is not null;
+    public IReadOnlyList<GridPos> Cells => [Cell];
 }
 
 /// <summary>План сооружения; после постройки <see cref="Built"/> — созданное сооружение.</summary>
@@ -62,6 +82,9 @@ public sealed class Builder
             new ForbiddenTerrainRule(catalog.ForbiddenTerrain),
             new SiteCellRule(),
             new FacilityCellRule(catalog),
+            new BridgeHeadRule(),
+            new TrackLayoutRule(),
+            new NetworkOverlapRule(catalog),
         ];
         _placement = placement ?? SitePlacement.Basic();
     }
@@ -78,8 +101,12 @@ public sealed class Builder
     {
         var definition = _catalog.Network(network);
         var cells = NetworkPaths.Drag(from, to);
-        var problems = cells
-            .SelectMany(cell => _cellRules.Select(rule => rule.Check(_map, definition, cell)))
+        var outside = cells.Where(c => !_map.Contains(c)).ToList();
+        if (cells.Count == 0 || outside.Count > 0)
+            return new BuildPlan(cells, outside.Select(c => new BuildProblem("outside_map", "За пределами карты.", c)).ToList());
+        // Правила видят, что именно ляжет в клетку: с какой стороны путь входит и куда выходит.
+        var problems = _map.Networks[network].PlanSteps(cells)
+            .SelectMany(step => _cellRules.Select(rule => rule.Check(_map, definition, step)))
             .OfType<BuildProblem>()
             .ToList();
         return new BuildPlan(cells, problems);
@@ -96,22 +123,22 @@ public sealed class Builder
     // ---------- Станции ----------
 
     /// <summary>
-    /// План станции протягиванием: полоса шириной в одну клетку вдоль длинной стороны протяжки.
+    /// План станции протягиванием (docs/10): прямоугольник между клетками. Вдоль длинной стороны — платформа,
+    /// поперёк — параллельные станционные пути, по составу на каждый. Квадрат кладёт пути вдоль стороны предприятия.
     /// Станция должна примыкать ровно к одному подходящему предприятию.
     /// </summary>
     public StationPlan PlanStation(TypeId stationId, GridPos from, GridPos to)
     {
         var station = _catalog.Station(stationId);
-        var alongX = Math.Abs(to.X - from.X) >= Math.Abs(to.Y - from.Y);
-        var area = alongX
-            ? new GridRect(Math.Min(from.X, to.X), from.Y, Math.Abs(to.X - from.X) + 1, 1)
-            : new GridRect(from.X, Math.Min(from.Y, to.Y), 1, Math.Abs(to.Y - from.Y) + 1);
+        var area = RectBetween(from, to);
+        var alongX = area.Width >= area.Height;
+        // Однопутная станция — полоса вдоль преобладающего направления протяжки, как бы ни дрогнула мышь.
+        if (station.MaxTracks == 1)
+            area = alongX
+                ? new GridRect(area.X, from.Y, area.Width, 1)
+                : new GridRect(from.X, area.Y, 1, area.Height);
 
         var problems = new List<BuildProblem>();
-        var length = Math.Max(area.Width, area.Height);
-        if (length > station.MaxLength)
-            problems.Add(new BuildProblem("too_long", $"Станция длиннее {station.MaxLength} клеток."));
-
         var candidates = _map.Sites.All
             .Where(site => station.AttachToSiteTypes.Contains(site.Type) && site.Touches(area))
             .ToList();
@@ -125,13 +152,23 @@ public sealed class Builder
         {
             problems.AddRange(_placement.Check(_map, new AttachPartRequest(target.Key, station.Id, area))
                 .Select(p => new BuildProblem(p.Code, p.Message)));
-            // Полоса в одну клетку: ось пути параллельна стороне, которой станция касается предприятия.
-            if (length == 1)
-                alongX = Directions.All
-                    .Where(side => target.Contains(area.Origin.Step(side)))
+            // Квадрат: ось путей параллельна стороне, которой станция касается предприятия.
+            if (area.Width == area.Height)
+                alongX = area.Cells()
+                    .SelectMany(cell => Directions.All.Where(side => target.Contains(cell.Step(side))))
                     .Any(side => side is Direction.North or Direction.South);
         }
 
+        var (length, tracks) = alongX ? (area.Width, area.Height) : (area.Height, area.Width);
+        if (length > station.MaxLength)
+            problems.Add(new BuildProblem("too_long", $"Станция длиннее {station.MaxLength} клеток."));
+        if (tracks > station.MaxTracks)
+            problems.Add(new BuildProblem("too_wide", station.MaxTracks == 1
+                ? "Станция — полоса в одну клетку."
+                : $"У станции не больше {station.MaxTracks} путей."));
+
+        var own = _map.Networks[station.Network];
+        var axis = alongX ? (Direction.West, Direction.East) : (Direction.North, Direction.South);
         foreach (var cell in area.Cells().Where(_map.Contains))
         {
             if (_map.Facilities.At(cell) is { } facility)
@@ -141,6 +178,17 @@ public sealed class Builder
             var foreign = _map.Networks.Layers.FirstOrDefault(n => n.Type != station.Network && n.HasAny(cell));
             if (foreign is not null)
                 problems.Add(new BuildProblem("other_network", "На месте станции проходит другая сеть.", cell));
+            if (_map.Networks.Layers.Any(n => n.BridgeAt(cell) is not null || n.BridgeOver(cell) is not null))
+                problems.Add(new BuildProblem("bridge", "На месте станции мост.", cell));
+            // Уже лежащий путь станции не мешает, если идёт вдоль платформы; повороты и стрелки внутри — мешают.
+            if (own is TrackNetworkLayer rails)
+            {
+                var pieces = rails.PiecesAt(cell);
+                if ((pieces & ~Tracks.Between(axis.Item1, axis.Item2)) != 0)
+                    problems.Add(new BuildProblem("station_track", "Станция ставится только на прямой путь вдоль платформы.", cell));
+                if (rails.SignalsAt(cell).Any())
+                    problems.Add(new BuildProblem("signal", "На месте станции сигнал: станции и депо работают как встроенные сигналы.", cell));
+            }
         }
 
         return new StationPlan(station, area, target, alongX, problems);
@@ -258,6 +306,137 @@ public sealed class Builder
             ? dx > 0 ? Direction.East : Direction.West
             : dy > 0 ? Direction.South : Direction.North;
     }
+
+    // ---------- Мосты ----------
+
+    /// <summary>
+    /// План моста протягиванием от опоры до опоры (docs/10б): прямой, не короче трёх клеток.
+    /// Опоры — на свободной земле; под пролётом могут быть пути, дороги и вода, но не площадки и не другой мост.
+    /// </summary>
+    public BridgePlan PlanBridge(TypeId bridgeId, GridPos from, GridPos to)
+    {
+        var definition = _catalog.Bridge(bridgeId);
+        // Мост идёт по прямой вдоль преобладающего направления протяжки.
+        var end = Math.Abs(to.X - from.X) >= Math.Abs(to.Y - from.Y) ? new GridPos(to.X, from.Y) : new GridPos(from.X, to.Y);
+        List<GridPos> cells = from == end ? [from] : NetworkPaths.Polyline([from, end]);
+        var problems = new List<BuildProblem>();
+        if (cells.Count < 3)
+            problems.Add(new BuildProblem("too_short", "Мост — от опоры до опоры, хотя бы через одну клетку."));
+        if (cells.Count > definition.MaxLength)
+            problems.Add(new BuildProblem("too_long", $"Мост длиннее {definition.MaxLength} клеток."));
+
+        for (var i = 0; i < cells.Count; i++)
+        {
+            var cell = cells[i];
+            if (!_map.Contains(cell))
+            {
+                problems.Add(new BuildProblem("outside_map", "За пределами карты.", cell));
+                continue;
+            }
+            var head = i == 0 || i == cells.Count - 1;
+            if (_map.Sites.At(cell) is { } site)
+                problems.Add(new BuildProblem("site_occupied", $"Клетка занята: {site.Name}.", cell));
+            if (_map.Facilities.At(cell) is { } facility)
+                problems.Add(new BuildProblem("facility", $"Клетка занята: {facility.Name}.", cell));
+            if (_map.Networks.Layers.Any(n => n.BridgeAt(cell) is not null || n.BridgeOver(cell) is not null))
+                problems.Add(new BuildProblem("bridge_crossing", "Мосты не пересекаются и не стоят друг на друге.", cell));
+            if (!head)
+                continue;
+            if (_map.Networks.Layers.Any(n => n.HasAny(cell)))
+                problems.Add(new BuildProblem("network", "Опора ставится на свободную клетку — путь подводят к ней потом.", cell));
+            if (TerrainChecks.ForbiddenTerrainAt(_map, _catalog.ForbiddenTerrain, cell) is { } terrain)
+                problems.Add(terrain);
+        }
+        return new BridgePlan(definition, cells, problems);
+    }
+
+    public BridgePlan BuildBridge(TypeId bridgeId, GridPos from, GridPos to)
+    {
+        var plan = PlanBridge(bridgeId, from, to);
+        if (!plan.CanBuild)
+            return plan;
+        var bridge = _map.Networks[plan.Definition.Network].AddBridge(plan.Definition.Id, plan.Cells[0], plan.Cells[^1]);
+        return plan with { Built = bridge };
+    }
+
+    // ---------- Сигналы ----------
+
+    /// <summary>
+    /// План сигнала (docs/10а). Щелчок по клетке — двусторонний сигнал; протяжка к соседней клетке вдоль пути —
+    /// односторонний, регулирует движение в сторону протяжки. Сигнал ставится на путь без стрелки:
+    /// не на стрелку, переезд, опору моста, станцию или депо (у них сигналы встроены).
+    /// </summary>
+    public SignalPlan PlanSignal(TypeId signalId, GridPos from, GridPos to)
+    {
+        var definition = _catalog.Signal(signalId);
+        var problems = new List<BuildProblem>();
+        if (!_map.Contains(from))
+            return new SignalPlan(definition, from, null, [new BuildProblem("outside_map", "За пределами карты.", from)]);
+        if (_map.Networks[definition.Network] is not TrackNetworkLayer rails)
+            throw new InvalidOperationException($"Сигналы ставятся только на рельсовую сеть, а «{definition.Network}» — не она.");
+
+        var pieces = rails.PiecesAt(from);
+        if (pieces == TrackPieces.None)
+            problems.Add(new BuildProblem("no_track", "Сигнал ставится на ж/д путь.", from));
+        else if (!pieces.IsSimple())
+            problems.Add(new BuildProblem("junction", "На стрелке и кресте сигнал не ставится — поставьте его до или после.", from));
+        if (_map.Networks.Layers.Any(n => n.BridgeAt(from) is not null))
+            problems.Add(new BuildProblem("bridge_head", "На опоре моста сигнал не ставится.", from));
+        if (_map.Networks.Layers.Any(n => n.Type != definition.Network && n.HasAny(from)))
+            problems.Add(new BuildProblem("crossing", "На переезде сигнал не ставится.", from));
+        if (_map.Sites.At(from) is not null || _map.Facilities.At(from) is not null)
+            problems.Add(new BuildProblem("station", "На станции и в депо сигналы встроены.", from));
+        if (problems.Count > 0)
+            return new SignalPlan(definition, from, null, problems);
+
+        Direction? facing = from == to ? null : DominantSide(from, to);
+        TrackPieces piece;
+        if (facing is { } side)
+        {
+            piece = pieces.Enumerate().FirstOrDefault(p => p.Touches(side));
+            if (piece == TrackPieces.None)
+                return new SignalPlan(definition, from, null,
+                    [new BuildProblem("wrong_direction", "Протяните мышью вдоль пути: так задаётся направление сигнала.", from)]);
+        }
+        else if (pieces.Count() == 1)
+            piece = pieces;
+        else
+            return new SignalPlan(definition, from, null,
+                [new BuildProblem("ambiguous", "Здесь два пути — протяните мышью вдоль нужного.", from)]);
+
+        var (a, b) = piece.Sides();
+        var faces = facing is { } f ? f.ToMask() : a.ToMask() | b.ToMask();
+        return new SignalPlan(definition, from, new Signal(from, piece, definition.Id, definition.Logic, faces), problems);
+    }
+
+    public SignalPlan BuildSignal(TypeId signalId, GridPos from, GridPos to)
+    {
+        var plan = PlanSignal(signalId, from, to);
+        if (plan.CanBuild)
+            ((TrackNetworkLayer)_map.Networks[plan.Definition.Network]).SetSignal(plan.Signal!);
+        return plan;
+    }
+
+    /// <summary>План снятия сигналов прямоугольником: пути остаются.</summary>
+    public BuildPlan PlanRemoveSignals(GridPos from, GridPos to)
+    {
+        var cells = RectBetween(from, to).Cells().Where(_map.Contains)
+            .Where(cell => SignalLayers().Any(l => l.SignalsAt(cell).Any()))
+            .ToList();
+        return new BuildPlan(cells, cells.Count == 0 ? [new BuildProblem("no_signals", "Здесь нет сигналов.")] : []);
+    }
+
+    public BuildPlan RemoveSignals(GridPos from, GridPos to)
+    {
+        var plan = PlanRemoveSignals(from, to);
+        foreach (var cell in plan.Cells)
+        foreach (var layer in SignalLayers())
+        foreach (var signal in layer.SignalsAt(cell).ToList())
+            layer.RemoveSignal(signal);
+        return plan;
+    }
+
+    private IEnumerable<TrackNetworkLayer> SignalLayers() => _map.Networks.Layers.OfType<TrackNetworkLayer>();
 
     // ---------- Снос ----------
 

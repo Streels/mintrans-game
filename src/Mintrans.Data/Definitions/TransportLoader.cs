@@ -23,8 +23,7 @@ public static class TransportLoader
             node.Find("stopSlots") is { } slots
                 ? slots.Element.EnumerateObject().ToDictionary(p => new TypeId(p.Name), p => new JsonNode(p.Value, $"{slots.Location}.{p.Name}").AsInt())
                 : null,
-            node.Int("wagonsPerStopCell", 2),
-            node.Int("shuntHours", 0))).ToList();
+            node.Int("wagonsPerStopCell", 2))).ToList();
 
         var bodies = root.Find("bodies")?.Items().Select(node =>
         {
@@ -62,6 +61,16 @@ public static class TransportLoader
 
         var maintenance = root.Get("maintenance");
         var loading = root.Get("loading");
+        var defaults = new RailTrafficRules();
+        var rail = root.Find("railTraffic") is { } traffic
+            ? new RailTrafficRules(
+                traffic.Find("occupiedDelayHours")?.AsDouble() ?? defaults.OccupiedDelayHours,
+                traffic.Find("reverseDelayHours")?.AsDouble() ?? defaults.ReverseDelayHours,
+                traffic.Int("reverseAfterHours", defaults.ReverseAfterHours),
+                traffic.Int("stuckWarningHours", defaults.StuckWarningHours),
+                traffic.Int("wreckHours", defaults.WreckHours),
+                traffic.Int("crossingCloseCells", defaults.CrossingCloseCells))
+            : defaults;
         try
         {
             return new TransportCatalog(
@@ -69,7 +78,8 @@ public static class TransportLoader
                 networks,
                 new MaintenanceRules(maintenance.Double("wearPerCell"), maintenance.Double("serviceAt"), maintenance.Int("serviceHours")),
                 new LoadingRules(loading.Int("maxWaitHours")),
-                bodies);
+                bodies,
+                rail);
         }
         catch (ArgumentException e)
         {

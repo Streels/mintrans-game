@@ -39,10 +39,11 @@ public sealed record TruckBody(TypeId Id, string Title, IReadOnlyList<TypeId> Ca
 /// <param name="Depot">Вид сооружения, в котором покупают и обслуживают технику (депо, автогараж).</param>
 /// <param name="StopParts">Части площадок предприятий, которые служат пунктами погрузки (станции).</param>
 /// <param name="StopFacilities">Отдельные сооружения-пункты (городской грузовой пункт).</param>
-/// <param name="Trains">Техника собирается в составы из локомотива и вагонов.</param>
-/// <param name="StopSlots">Сколько единиц техники пункт данного вида обслуживает одновременно (docs/12: 2–10); остальные ждут.</param>
-/// <param name="WagonsPerStopCell">Сколько вагонов обслуживает одна клетка платформы (docs/12: два).</param>
-/// <param name="ShuntHours">Сколько часов занимает перестановка состава между частями, если он длиннее платформы.</param>
+/// <param name="Trains">Техника собирается в составы из локомотива и вагонов. У поездов число мест на станции —
+/// число её путей (docs/10), очередь регулируют сигналы, а не <paramref name="StopSlots"/>.</param>
+/// <param name="StopSlots">Сколько машин пункт данного вида обслуживает одновременно (docs/12: 2–10); остальные ждут.</param>
+/// <param name="WagonsPerStopCell">Сколько вагонов помещается вдоль одной клетки платформы (docs/12: два).
+/// Состав длиннее платформы обрабатывается медленнее — пропорционально тому, какая его часть стоит у платформы.</param>
 public sealed record NetworkTransport(
     TypeId Network,
     TypeId Depot,
@@ -51,11 +52,27 @@ public sealed record NetworkTransport(
     int UnitsPerCell,
     bool Trains,
     IReadOnlyDictionary<TypeId, int>? StopSlots = null,
-    int WagonsPerStopCell = 2,
-    int ShuntHours = 0)
+    int WagonsPerStopCell = 2)
 {
     public int SlotsOf(TypeId stopKind) => StopSlots?.GetValueOrDefault(stopKind, 1) ?? 1;
 }
+
+/// <summary>
+/// Движение поездов по сигналам (docs/10а, docs/12). Числа временные, уточняются при балансе.
+/// </summary>
+/// <param name="OccupiedDelayHours">Ожидаемая задержка за участок, занятый или закреплённый другим поездом, — при выборе маршрута.</param>
+/// <param name="ReverseDelayHours">Ожидаемая задержка разворота — при выборе маршрута.</param>
+/// <param name="ReverseAfterHours">Сколько часов поезд с настройкой «разворачиваться» ждёт у красного сигнала, прежде чем развернуться.</param>
+/// <param name="StuckWarningHours">Через сколько часов без движения у красного сигнала игрок получает предупреждение о блокировке.</param>
+/// <param name="WreckHours">Сколько часов обломки после крушения занимают путь.</param>
+/// <param name="CrossingCloseCells">За сколько клеток до переезда приближающийся поезд закрывает его для машин.</param>
+public sealed record RailTrafficRules(
+    double OccupiedDelayHours = 6,
+    double ReverseDelayHours = 2,
+    int ReverseAfterHours = 6,
+    int StuckWarningHours = 48,
+    int WreckHours = 48,
+    int CrossingCloseCells = 2);
 
 /// <summary>Износ и обслуживание (docs/11). Числа временные.</summary>
 /// <param name="WearPerCell">Прирост износа за клетку пути (1 = 100 %).</param>
@@ -79,13 +96,15 @@ public sealed class TransportCatalog
         IEnumerable<NetworkTransport> networks,
         MaintenanceRules maintenance,
         LoadingRules loading,
-        IEnumerable<TruckBody>? bodies = null)
+        IEnumerable<TruckBody>? bodies = null,
+        RailTrafficRules? rail = null)
     {
         _models = models.ToDictionary(m => m.Id);
         _bodies = (bodies ?? []).ToDictionary(b => b.Id);
         _networks = networks.ToDictionary(n => n.Network);
         Maintenance = maintenance;
         Loading = loading;
+        Rail = rail ?? new RailTrafficRules();
         foreach (var model in _models.Values)
         {
             if (!_networks.ContainsKey(model.Network))
@@ -110,6 +129,7 @@ public sealed class TransportCatalog
     public IReadOnlyCollection<NetworkTransport> Networks => _networks.Values;
     public MaintenanceRules Maintenance { get; }
     public LoadingRules Loading { get; }
+    public RailTrafficRules Rail { get; }
 
     public VehicleModel Model(TypeId id) =>
         _models.TryGetValue(id, out var model) ? model : throw new KeyNotFoundException($"Нет модели техники «{id}».");

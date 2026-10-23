@@ -1,5 +1,6 @@
 using Godot;
 using Mintrans.Construction;
+using Mintrans.Core.Grid;
 using Mintrans.Data;
 using Mintrans.Data.Definitions;
 using Mintrans.Economy.Runtime;
@@ -10,6 +11,7 @@ using Mintrans.Game.Tools;
 using Mintrans.Game.UI;
 using Mintrans.Game.View;
 using Mintrans.Simulation;
+using Mintrans.Transport.Reports;
 using Mintrans.Transport.Runtime;
 using Mintrans.Transport.Systems;
 using Mintrans.World;
@@ -58,7 +60,9 @@ public partial class Main : Node2D
         {
             var scenario = new UiScenario { ScreenshotPath = args.Screenshot };
             AddChild(scenario);
-            scenario.Init(_map, _projection, demo, simulation.Run);
+            scenario.Init(_map, _projection, demo, simulation.Run, () => _transport?.Vehicles
+                .Where(v => v.Network.Trains && v.State is VehicleState.Travelling or VehicleState.Loading or VehicleState.Unloading)
+                .Select(v => (Core.Grid.GridPos?)v.Position).FirstOrDefault());
         }
         else if (args.Screenshot is { } path)
             AddChild(new ScreenshotCapture { Path = path });
@@ -91,9 +95,11 @@ public partial class Main : Node2D
         AddChild(facilities);
         facilities.Init(map, _projection, style);
 
-        // Техника рисуется поверх сетей; данные для неё появятся ниже, вместе с симуляцией.
+        // Техника рисуется поверх сетей, сигналы и переезды — поверх техники; данные для них появятся ниже, вместе с симуляцией.
         var vehicles = new VehicleView { Name = "Vehicles" };
         AddChild(vehicles);
+        var signals = new SignalView { Name = "Signals" };
+        AddChild(signals);
 
         _highlight = new CellHighlight { Name = "Highlight" };
         AddChild(_highlight);
@@ -121,17 +127,19 @@ public partial class Main : Node2D
         AddChild(driver);
         driver.Init(simulation, content.Simulation);
         driver.Runner.Paused = args.Paused;
-        vehicles.Init(map, _projection, transport, driver.Runner);
+        vehicles.Init(map, _projection, transport, driver.Runner, style, LoadTrainSprites(style));
+        signals.Init(map, _projection, style, transport);
 
         // Панель депо: покупка техники и маршруты.
         _fleet = new FleetPanel { Name = "Fleet" };
         _hud.AddWidget(_fleet);
-        _fleet.Init(transport, map, _names);
+        _fleet.Init(transport, _economy, () => simulation.State.Time.Day, map, _names);
 
-        // Каждый час обновляются панель депо и панель клетки (очереди), раз в сутки — подписи объектов.
+        // Каждый час обновляются панель депо, панель клетки (очереди) и сигналы, раз в сутки — подписи объектов.
         simulation.StepCompleted += time =>
         {
             _fleet.Refresh();
+            signals.Refresh();
             RefreshCellInfo();
             if (time.IsStartOfDay)
                 labels.Refresh();
@@ -160,8 +168,12 @@ public partial class Main : Node2D
         _hud.AddWidget(toolBar);
         toolBar.Init(build, BuildTools.Create(builder), _names);
 
+        // --focus=ключ объекта или --focus=x,y клетки.
         if (args.Focus is { } key && map.Sites.TryGetByKey(key, out var site))
             _camera.Focus(_projection.CellCenter(site.Base.Center, SiteView.SiteHeight(map, site)), args.Zoom ?? 1.5f);
+        else if (args.Focus?.Split(',') is [var fx, var fy] && int.TryParse(fx, out var x) && int.TryParse(fy, out var y)
+                 && map.Contains(new GridPos(x, y)))
+            _camera.Focus(_projection.CellCenter(new GridPos(x, y), map.Terrain.Height[new GridPos(x, y)]), args.Zoom ?? 1.5f);
         else
             _camera.Fit(MapBounds(map));
     }
@@ -192,7 +204,15 @@ public partial class Main : Node2D
         }
         var lines = CellDescriber.Describe(_map, cell, _names).ToList();
         if (_map.Sites.At(cell) is { } site && _economy?.At(site.Id) is { } economic)
+        {
             lines.AddRange(EconomyText.Details(economic, _names));
+            // Груз в пути к объекту (docs/12): в технике, которая везёт его сюда.
+            if (_transport is not null)
+            {
+                foreach (var (resource, (amount, count)) in RouteReport.InTransitTo(_transport, site.Id))
+                    lines.Add($"  в пути сюда: {_names[resource.Value]} {amount} ({count} ед. техники)");
+            }
+        }
         // Пункт погрузки: сколько техники у него и сколько ждёт очереди (docs/10, docs/12).
         foreach (var stop in _transport?.Stops.All.Where(s => s.Contains(cell)) ?? [])
         {
@@ -203,6 +223,22 @@ public partial class Main : Node2D
                 : $"Пункт ({_names[stop.Network.Value]}): техники {here.Count}, в очереди {queued}");
         }
         _hud.SetCellInfo(lines);
+    }
+
+    /// <summary>Набор спрайтов вагонов из стиля; если его нет или он не читается — поезда рисуются линией.</summary>
+    private static TrainSprites? LoadTrainSprites(MapStyle style)
+    {
+        if (style.TrainSprites is not { } path)
+            return null;
+        try
+        {
+            return TrainSprites.Load(path);
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning($"Спрайты поездов не загружены, рисую линией: {e.Message}");
+            return null;
+        }
     }
 
     private Rect2 MapBounds(WorldMap map)
