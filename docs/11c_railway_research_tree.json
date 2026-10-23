@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.1",
+  "schema_version": "0.2-draft-balance",
   "status": "draft",
   "method": "World of Tanks-style DAG; individual rolling-stock families",
   "notes": [
@@ -8,327 +8,1049 @@
     "Названия веток отражают транспортные школы, но не запрещают иное назначение подвижного состава.",
     "Годы ориентировочные и не равны автоматически году открытия в игре.",
     "Модель «Белый кречет» — перспективный проект, а не подтверждённая серийная машина.",
-    "Для отдельных моделей задаются facilityRequirements: минимальное число НИИ и КБ нужного уровня. Один институт учитывается не более одного раза в каждом требовании, независимо от уровня.",
-    "Условия НИИ для ЭД4М и «Сапсана» отражают примеры игрока; добавленное требование КБ III уровня для «Сапсана» — предварительное предложение для баланса."
+    "Все 68 моделей имеют researchCostRP и facilityRequirements; параметры preliminary-1 в balance и таблице 14б.",
+    "ЭД4М: 1 НИИ III как пример пользователя, КБ II как предлагаемое дополнение. «Сапсан»: 3 НИИ III как пример пользователя, 1 КБ III как предлагаемое дополнение."
   ],
   "nodes": [
     {
       "id": "ov",
       "name": "Ов (ранний парк)",
       "year": 1890,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 0,
+      "facilityRequirements": []
     },
     {
       "id": "e",
       "name": "Э",
       "year": 1912,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 40,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "su",
       "name": "Су",
       "year": 1924,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 65,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "fd",
       "name": "ФД",
       "year": 1931,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 90,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "is",
       "name": "ИС",
       "year": 1932,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 110,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "so",
       "name": "СО",
       "year": 1934,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 105,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "l",
       "name": "Л",
       "year": 1945,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 150,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "p36",
       "name": "П36",
       "year": 1950,
-      "branch": "steam"
+      "branch": "steam",
+      "researchCostRP": 195,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te1",
       "name": "ТЭ1",
       "year": 1947,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 165,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te2",
       "name": "ТЭ2",
       "year": 1948,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 190,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te3",
       "name": "ТЭ3",
       "year": 1953,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 235,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te10",
       "name": "ТЭ10",
       "year": 1958,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 310,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te210",
       "name": "2ТЭ10",
       "year": 1960,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 355,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "m62",
       "name": "М62",
       "year": 1965,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 330,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te116",
       "name": "2ТЭ116",
       "year": 1971,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 530,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te121",
       "name": "2ТЭ121",
       "year": 1981,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 760,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te25km",
       "name": "2ТЭ25КМ",
       "year": 2014,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 2000,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "te28",
       "name": "3ТЭ28",
       "year": 2022,
-      "branch": "main_diesel"
+      "branch": "main_diesel",
+      "researchCostRP": 3000,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 3,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tep10",
       "name": "ТЭП10",
       "year": 1960,
-      "branch": "pass_diesel"
+      "branch": "pass_diesel",
+      "researchCostRP": 310,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tep60",
       "name": "ТЭП60",
       "year": 1960,
-      "branch": "pass_diesel"
+      "branch": "pass_diesel",
+      "researchCostRP": 335,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tep70",
       "name": "ТЭП70",
       "year": 1973,
-      "branch": "pass_diesel"
+      "branch": "pass_diesel",
+      "researchCostRP": 550,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tep70bs",
       "name": "ТЭП70БС",
       "year": 2002,
-      "branch": "pass_diesel"
+      "branch": "pass_diesel",
+      "researchCostRP": 1200,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tgm1",
       "name": "ТГМ1",
       "year": 1956,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 205,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tem1",
       "name": "ТЭМ1",
       "year": 1958,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 240,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "chme2",
       "name": "ЧМЭ2",
       "year": 1958,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 240,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tem2",
       "name": "ТЭМ2",
       "year": 1960,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 295,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "chme3",
       "name": "ЧМЭ3",
       "year": 1963,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 325,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tem7",
       "name": "ТЭМ7",
       "year": 1973,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 540,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tem18dm",
       "name": "ТЭМ18ДМ",
       "year": 2008,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 1240,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "tem23",
       "name": "ТЭМ23",
       "year": 2022,
-      "branch": "shunt"
+      "branch": "shunt",
+      "researchCostRP": 2400,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl22m",
       "name": "ВЛ22м",
       "year": 1947,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 175,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl8",
       "name": "ВЛ8",
       "year": 1955,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 240,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl10",
       "name": "ВЛ10",
       "year": 1961,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 345,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl11",
       "name": "ВЛ11",
       "year": 1975,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 585,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "es4k",
       "name": "2ЭС4К «Дончак»",
       "year": 2006,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 1390,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "es6",
       "name": "2ЭС6 «Синара»",
       "year": 2006,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 1520,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "es10",
       "name": "2ЭС10 «Гранит»",
       "year": 2010,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 1950,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "es8",
       "name": "3ЭС8 «Малахит»",
       "year": 2023,
-      "branch": "freight_dc"
+      "branch": "freight_dc",
+      "researchCostRP": 3200,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 3,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl60",
       "name": "ВЛ60",
       "year": 1957,
-      "branch": "freight_ac"
+      "branch": "freight_ac",
+      "researchCostRP": 265,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl80",
       "name": "ВЛ80",
       "year": 1963,
-      "branch": "freight_ac"
+      "branch": "freight_ac",
+      "researchCostRP": 385,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "vl85",
       "name": "ВЛ85",
       "year": 1983,
-      "branch": "freight_ac"
+      "branch": "freight_ac",
+      "researchCostRP": 820,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "es5k",
       "name": "2ЭС5К «Ермак»",
       "year": 2004,
-      "branch": "freight_ac"
+      "branch": "freight_ac",
+      "researchCostRP": 1460,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "chs2",
       "name": "ЧС2",
       "year": 1958,
-      "branch": "pass_dc"
+      "branch": "pass_dc",
+      "researchCostRP": 265,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "chs7",
       "name": "ЧС7",
       "year": 1983,
-      "branch": "pass_dc"
+      "branch": "pass_dc",
+      "researchCostRP": 800,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ep2k",
       "name": "ЭП2К",
       "year": 2006,
-      "branch": "pass_dc"
+      "branch": "pass_dc",
+      "researchCostRP": 1450,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "chs4t",
       "name": "ЧС4Т",
       "year": 1971,
-      "branch": "pass_ac"
+      "branch": "pass_ac",
+      "researchCostRP": 430,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "chs8",
       "name": "ЧС8",
       "year": 1983,
-      "branch": "pass_ac"
+      "branch": "pass_ac",
+      "researchCostRP": 825,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ep1",
       "name": "ЭП1 (семейство)",
       "year": 1998,
-      "branch": "pass_ac"
+      "branch": "pass_ac",
+      "researchCostRP": 1080,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ep20",
       "name": "ЭП20",
       "year": 2012,
-      "branch": "pass_ac"
+      "branch": "pass_ac",
+      "researchCostRP": 2250,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "sr3",
       "name": "Ср3",
       "year": 1952,
-      "branch": "emu_dc"
+      "branch": "emu_dc",
+      "researchCostRP": 210,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "er1",
       "name": "ЭР1",
       "year": 1957,
-      "branch": "emu_dc"
+      "branch": "emu_dc",
+      "researchCostRP": 270,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "er2",
       "name": "ЭР2",
       "year": 1962,
-      "branch": "emu_dc"
+      "branch": "emu_dc",
+      "researchCostRP": 350,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ed2t",
       "name": "ЭД2Т",
       "year": 1993,
-      "branch": "emu_dc"
+      "branch": "emu_dc",
+      "researchCostRP": 690,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ed4m",
@@ -341,80 +1063,267 @@
           "minLevel": 3,
           "count": 1,
           "approval": "example_from_user"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
         }
-      ]
+      ],
+      "researchCostRP": 850
     },
     {
       "id": "ep2d",
       "name": "ЭП2Д (семейство)",
       "year": 2016,
-      "branch": "emu_dc"
+      "branch": "emu_dc",
+      "researchCostRP": 1850,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ivolga",
       "name": "«Иволга» (семейство)",
       "year": 2014,
-      "branch": "emu_dc"
+      "branch": "emu_dc",
+      "researchCostRP": 2050,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "er9",
       "name": "ЭР9",
       "year": 1962,
-      "branch": "emu_ac"
+      "branch": "emu_ac",
+      "researchCostRP": 390,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ed9m",
       "name": "ЭД9М",
       "year": 1995,
-      "branch": "emu_ac"
+      "branch": "emu_ac",
+      "researchCostRP": 780,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ep3d",
       "name": "ЭП3Д",
       "year": 2016,
-      "branch": "emu_ac"
+      "branch": "emu_ac",
+      "researchCostRP": 1870,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "dr1",
       "name": "ДР1",
       "year": 1963,
-      "branch": "regional"
+      "branch": "regional",
+      "researchCostRP": 325,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "d1",
       "name": "Д1",
       "year": 1964,
-      "branch": "regional"
+      "branch": "regional",
+      "researchCostRP": 335,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 1,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ra2",
       "name": "РА2",
       "year": 2005,
-      "branch": "regional"
+      "branch": "regional",
+      "researchCostRP": 1220,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "ra3",
       "name": "РА3 «Орлан»",
       "year": 2019,
-      "branch": "regional"
+      "branch": "regional",
+      "researchCostRP": 2230,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "lastochka",
       "name": "ЭС1 «Ласточка»",
       "year": 2013,
-      "branch": "fast"
+      "branch": "fast",
+      "researchCostRP": 2160,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "finist",
       "name": "ЭС104 «Финист»",
       "year": 2023,
-      "branch": "fast"
+      "branch": "fast",
+      "researchCostRP": 2950,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 3,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "er200",
       "name": "ЭР200",
       "year": 1984,
-      "branch": "high_speed"
+      "branch": "high_speed",
+      "researchCostRP": 1100,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 2,
+          "count": 2,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 2,
+          "count": 1,
+          "approval": "balance_proposal"
+        }
+      ]
     },
     {
       "id": "sapsan",
@@ -434,14 +1343,30 @@
           "count": 1,
           "approval": "balance_proposal"
         }
-      ]
+      ],
+      "researchCostRP": 3400
     },
     {
       "id": "belkrechet",
       "name": "«Белый кречет» (проект)",
       "year": 2028,
       "branch": "high_speed",
-      "status": "planned"
+      "status": "planned",
+      "researchCostRP": 4800,
+      "facilityRequirements": [
+        {
+          "type": "nii",
+          "minLevel": 3,
+          "count": 4,
+          "approval": "balance_proposal"
+        },
+        {
+          "type": "kb",
+          "minLevel": 3,
+          "count": 2,
+          "approval": "balance_proposal"
+        }
+      ]
     }
   ],
   "edges": [
@@ -900,5 +1825,36 @@
       "type": "cross",
       "reason": "Альтернатива дальнейшему обычному пригородному развитию."
     }
-  ]
+  ],
+  "balance": {
+    "version": "preliminary-1",
+    "status": "design-not-implemented",
+    "units": {
+      "researchCostRP": "scientific research points",
+      "output": "points per game month"
+    },
+    "assumedFacilityOutputRPPerMonth": {
+      "nii": {
+        "1": 10,
+        "2": 22,
+        "3": 36
+      },
+      "kb": {
+        "1": 6,
+        "2": 14,
+        "3": 23
+      }
+    },
+    "note": "Производительность зданий и стоимости исследований — предварительные допущения; требования являются балансом для тестирования, кроме примеров пользователя с НИИ для ЭД4М и Сапсана.",
+    "policies": [
+      "Requirements enforce count of distinct working facilities by type at minLevel or above.",
+      "No facility is consumed or exclusively reserved while a model is being researched.",
+      "All working NII and KB of any level contribute to a shared monthly RP pool.",
+      "At most one NII per eligible developed city and one KB per eligible machinery factory.",
+      "A model requires one already researched incoming predecessor (OR), historical earliest year, and all facility requirements (AND).",
+      "When requirements become false, ongoing research is paused without losing progress.",
+      "Pre-1950 research nodes may be unlocked as scenario initial technology without spending RP.",
+      "Research tree is target design, runtime currently uses calendar-only unlocks."
+    ]
+  }
 }
