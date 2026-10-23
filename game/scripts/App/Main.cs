@@ -11,6 +11,7 @@ using Mintrans.Game.Tools;
 using Mintrans.Game.UI;
 using Mintrans.Game.View;
 using Mintrans.Simulation;
+using Mintrans.Transport.Reports;
 using Mintrans.Transport.Runtime;
 using Mintrans.Transport.Systems;
 using Mintrans.World;
@@ -130,7 +131,7 @@ public partial class Main : Node2D
         // Панель депо: покупка техники и маршруты.
         _fleet = new FleetPanel { Name = "Fleet" };
         _hud.AddWidget(_fleet);
-        _fleet.Init(transport, map, _names);
+        _fleet.Init(transport, _economy, () => simulation.State.Time.Day, map, _names);
 
         // Каждый час обновляются панель депо, панель клетки (очереди) и сигналы, раз в сутки — подписи объектов.
         simulation.StepCompleted += time =>
@@ -201,7 +202,15 @@ public partial class Main : Node2D
         }
         var lines = CellDescriber.Describe(_map, cell, _names).ToList();
         if (_map.Sites.At(cell) is { } site && _economy?.At(site.Id) is { } economic)
+        {
             lines.AddRange(EconomyText.Details(economic, _names));
+            // Груз в пути к объекту (docs/12): в технике, которая везёт его сюда.
+            if (_transport is not null)
+            {
+                foreach (var (resource, (amount, count)) in RouteReport.InTransitTo(_transport, site.Id))
+                    lines.Add($"  в пути сюда: {_names[resource.Value]} {amount} ({count} ед. техники)");
+            }
+        }
         // Пункт погрузки: сколько техники у него и сколько ждёт очереди (docs/10, docs/12).
         foreach (var stop in _transport?.Stops.All.Where(s => s.Contains(cell)) ?? [])
         {

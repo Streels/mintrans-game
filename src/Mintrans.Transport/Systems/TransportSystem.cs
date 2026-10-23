@@ -96,6 +96,7 @@ public sealed class TransportSystem : ISimulationSystem
         switch (vehicle.State)
         {
             case VehicleState.InDepot:
+            case VehicleState.Stopped:
                 return;
             case VehicleState.Crashed:
                 if (vehicle.HoursInState >= context.RailRules.WreckHours)
@@ -105,10 +106,11 @@ public sealed class TransportSystem : ISimulationSystem
                 if (vehicle.HoursInState >= context.Maintenance.ServiceHours)
                 {
                     vehicle.Wear = 0;
-                    if (vehicle.A is null)
-                        vehicle.SetState(VehicleState.InDepot);
+                    // После ТО — дальше по маршруту; после команды «в депо» — остаться в депо (docs/11).
+                    if (vehicle.AfterDepot is { } next && vehicle.A is not null)
+                        Depart(vehicle, next);
                     else
-                        Depart(vehicle, Leg.ToA);
+                        vehicle.SetState(VehicleState.InDepot);
                 }
                 return;
             case VehicleState.Travelling:
@@ -580,10 +582,12 @@ public sealed class TransportSystem : ISimulationSystem
                 unit.CargoType = null;
         }
         context.Spend(receiver, used);
+        context.Transport.RecordDelivery(vehicle.A!.Value, vehicle.B!.Value, context.State.Time.Day, used);
 
         if (vehicle.Cargo.IsZero)
         {
             var needsService = vehicle.Wear >= context.Maintenance.ServiceAt;
+            vehicle.AfterDepot = Leg.ToA;
             Depart(vehicle, needsService ? Leg.ToDepot : Leg.ToA);
             return;
         }

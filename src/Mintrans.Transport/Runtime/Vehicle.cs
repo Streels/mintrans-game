@@ -36,6 +36,9 @@ public enum VehicleState
 
     /// <summary>Разбит в крушении (docs/10а): обломки занимают путь, затем техника исчезает.</summary>
     Crashed,
+
+    /// <summary>Остановлен игроком там, где был: стоит на месте, пока его не возобновят. Поезд продолжает занимать путь.</summary>
+    Stopped,
 }
 
 /// <summary>Что делает поезд у красного сигнала (docs/10а, docs/12).</summary>
@@ -137,6 +140,24 @@ public sealed class Vehicle
 
     /// <summary>Поезд только что встал (депо, станция) — может уехать в любую сторону, развернув состав.</summary>
     internal bool CanTurn { get; set; } = true;
+
+    /// <summary>
+    /// Куда ехать после обслуживания в депо: продолжить маршрут к А или к Б, или остаться в депо (null) —
+    /// по команде игрока «в депо».
+    /// </summary>
+    public Leg? AfterDepot { get; internal set; } = Leg.ToA;
+
+    /// <summary>Что техника делала, когда игрок её остановил, — к этому она вернётся по команде «возобновить».</summary>
+    internal VehicleState StoppedFrom { get; set; }
+
+    /// <summary>
+    /// Сколько часов осталось до цели текущего этапа при нынешней скорости, без учёта ожидания у сигналов и переездов
+    /// (docs/12). Null, если техника не в пути.
+    /// </summary>
+    public double? HoursToArrival =>
+        State == VehicleState.Travelling && Path.Count > 0 && Speed > 0
+            ? Math.Max(0, Path.Count - 1 - PathIndex - MoveBudget) / Speed
+            : null;
 
     /// <summary>Износ от 0 до 1 и выше (docs/11).</summary>
     public double Wear { get; internal set; }
