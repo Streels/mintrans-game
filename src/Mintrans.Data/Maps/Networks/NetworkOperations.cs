@@ -78,7 +78,7 @@ public sealed class SignalOperation : IMapOperation
             }
             : null;
         var piece = toward is { } t ? pieces.Enumerate().FirstOrDefault(p => p.Touches(t)) : pieces;
-        if (piece.Count() != 1 || pieces.IsJunction())
+        if (piece.Count() != 1 || !pieces.IsSimple())
             throw args.Get("at").Error($"в клетке {at} нужен один кусок пути без стрелки");
         var (a, b) = piece.Sides();
         rails.SetSignal(new Signal(at, piece, args.String("kind"), logic, toward is { } f ? f.ToMask() : a.ToMask() | b.ToMask()));

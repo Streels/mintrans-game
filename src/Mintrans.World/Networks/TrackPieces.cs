@@ -57,18 +57,26 @@ public static class Tracks
 
     /// <summary>
     /// Допустима ли конфигурация клетки (docs/10б). Куски, сходящиеся у одной стороны, — стрелка;
-    /// параллельные угловые — два независимых пути. Две прямые пересекаются в центре клетки —
-    /// это пересечение линий в одном уровне, для него нужен мост.
+    /// параллельные угловые — два независимых пути; две прямые — крест, пересечение линий в одном уровне без поворота.
+    /// К кресту нельзя добавить поворот: в центре клетки сходились бы сразу три направления.
     /// </summary>
     public static bool IsValid(this TrackPieces pieces) =>
-        (pieces & (TrackPieces.NorthSouth | TrackPieces.EastWest)) != (TrackPieces.NorthSouth | TrackPieces.EastWest);
+        (pieces & Cross) != Cross || pieces == Cross;
+
+    /// <summary>Крест: две прямые пересекаются в центре клетки, повернуть нельзя (как в OpenTTD).</summary>
+    public static bool IsCrossing(this TrackPieces pieces) => pieces == Cross;
+
+    private const TrackPieces Cross = TrackPieces.NorthSouth | TrackPieces.EastWest;
 
     /// <summary>Два параллельных угловых куска: лежат в одной клетке, не касаясь друг друга.</summary>
     public static bool IsParallelPair(this TrackPieces pieces) =>
         pieces is (TrackPieces.NorthEast | TrackPieces.SouthWest) or (TrackPieces.NorthWest | TrackPieces.SouthEast);
 
     /// <summary>Стрелка: несколько кусков, которые сходятся у общей стороны клетки.</summary>
-    public static bool IsJunction(this TrackPieces pieces) => pieces.Count() > 1 && !pieces.IsParallelPair();
+    public static bool IsJunction(this TrackPieces pieces) => pieces.Count() > 1 && !pieces.IsParallelPair() && !pieces.IsCrossing();
+
+    /// <summary>Простой путь — один кусок или два параллельных: на нём можно ставить сигнал.</summary>
+    public static bool IsSimple(this TrackPieces pieces) => pieces.Count() == 1 || pieces.IsParallelPair();
 
     /// <summary>Мешают ли куски друг другу в одной клетке (как в OpenTTD: свободны только параллельные угловые).</summary>
     public static bool Overlap(TrackPieces a, TrackPieces b) => (a & b) != 0 || !(a | b).IsParallelPair();

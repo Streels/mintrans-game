@@ -9,9 +9,15 @@ public class RailGeometryTests
     private static GridPos P(int x, int y) => new(x, y);
 
     [Fact]
-    public void Two_straights_crossing_is_not_a_valid_cell_but_switches_and_parallel_curves_are()
+    public void Cross_switches_and_parallel_curves_are_valid_but_cross_with_turn_is_not()
     {
-        Assert.False((TrackPieces.NorthSouth | TrackPieces.EastWest).IsValid());
+        var cross = TrackPieces.NorthSouth | TrackPieces.EastWest;
+        Assert.True(cross.IsValid());
+        Assert.True(cross.IsCrossing());
+        Assert.False(cross.IsJunction());
+        Assert.False(cross.IsSimple());
+        Assert.False((cross | TrackPieces.NorthEast).IsValid());
+        Assert.True(Tracks.Overlap(TrackPieces.NorthSouth, TrackPieces.EastWest));
         Assert.True((TrackPieces.EastWest | TrackPieces.SouthWest).IsValid());
         Assert.True((TrackPieces.EastWest | TrackPieces.SouthWest).IsJunction());
         // Параллельные угловые куски — два независимых пути в одной клетке, не стрелка.
@@ -21,6 +27,24 @@ public class RailGeometryTests
         Assert.False(Tracks.Overlap(TrackPieces.NorthEast, TrackPieces.SouthWest));
         Assert.True(Tracks.Overlap(TrackPieces.NorthEast, TrackPieces.NorthWest));
         Assert.True(Tracks.Overlap(TrackPieces.EastWest, TrackPieces.EastWest));
+    }
+
+    [Fact]
+    public void Lines_crossing_at_grade_go_straight_and_do_not_connect()
+    {
+        var map = TestWorld.Map();
+        var rail = map.Rail();
+        rail.LayPath([P(1, 5), P(2, 5), P(3, 5), P(4, 5), P(5, 5)]);
+        rail.LayPath([P(3, 3), P(3, 4), P(3, 5), P(3, 6), P(3, 7)]);
+
+        Assert.True(rail.PiecesAt(P(3, 5)).IsCrossing());
+        Assert.True(rail.Connects(P(3, 5), Direction.West, Direction.East));
+        Assert.False(rail.Connects(P(3, 5), Direction.West, Direction.South));
+        Assert.Equal([Direction.East], rail.ExitsFrom(P(3, 5), Direction.West));
+        // Обе линии проходимы насквозь, но с одной на другую не свернуть: до (3,3) по сети не доехать.
+        Assert.True(NetworkQueries.AreConnected(rail, [P(1, 5)], [P(5, 5)]));
+        Assert.True(NetworkQueries.AreConnected(rail, [P(3, 3)], [P(3, 7)]));
+        Assert.DoesNotContain(P(3, 3), NetworkQueries.ReachableFrom(rail, P(1, 5)));
     }
 
     [Fact]

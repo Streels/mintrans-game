@@ -43,13 +43,20 @@ public class RailBuildTests
     private static TrackNetworkLayer Rail(WorldMap map) => (TrackNetworkLayer)map.Networks["rail"];
 
     [Fact]
-    public void Rail_lines_do_not_cross_at_grade()
+    public void Rail_lines_cross_at_grade_but_cannot_turn_on_the_cross()
     {
         var (map, builder) = Setup();
         Assert.True(builder.BuildPath("rail", P(8, 10), P(16, 10)).CanBuild);
         var plan = builder.BuildPath("rail", P(12, 6), P(12, 14));
-        Assert.Contains(plan.Problems, p => p.Code == "level_crossing" && p.Cell == P(12, 10));
-        Assert.Equal(TrackPieces.EastWest, Rail(map).PiecesAt(P(12, 10)));
+        Assert.True(plan.CanBuild, string.Join("; ", plan.Problems.Select(p => p.Message)));
+        Assert.Equal(TrackPieces.NorthSouth | TrackPieces.EastWest, Rail(map).PiecesAt(P(12, 10)));
+
+        // Стрелка в клетке креста не строится, на кресте нет места сигналу.
+        Assert.Contains(builder.PlanPath("rail", P(11, 10), P(13, 12)).Problems, p => p.Code == "cross_with_turn" && p.Cell == P(12, 10));
+        Assert.Contains(builder.PlanSignal("block_signal", P(12, 10), P(12, 10)).Problems, p => p.Code == "junction");
+        // Через стрелку крест не построить тоже.
+        Assert.True(builder.BuildPath("rail", P(13, 10), P(15, 12)).CanBuild);
+        Assert.Contains(builder.PlanPath("rail", P(14, 6), P(14, 14)).Problems, p => p.Code == "cross_with_turn" && p.Cell == P(14, 10));
     }
 
     [Fact]
@@ -73,7 +80,7 @@ public class RailBuildTests
         Assert.Contains(builder.PlanPath("road", P(12, 10), P(14, 10)).Problems, p => p.Code == "crossing_shape");
         Assert.Contains(builder.PlanPath("road", P(14, 6), P(14, 10)).Problems, p => p.Code == "crossing_shape");
         // Рельсы поверх переезда не поворачивают.
-        Assert.Contains(builder.PlanPath("rail", P(10, 6), P(10, 9)).Problems, p => p.Code is "crossing_shape" or "level_crossing");
+        Assert.Contains(builder.PlanPath("rail", P(10, 6), P(10, 9)).Problems, p => p.Code == "crossing_shape");
     }
 
     [Fact]

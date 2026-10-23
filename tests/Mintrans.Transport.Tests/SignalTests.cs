@@ -114,6 +114,27 @@ public class SignalTests
     }
 
     [Fact]
+    public void Train_goes_straight_over_rail_cross_and_holds_it_against_the_other_line()
+    {
+        var line = new Corridor();
+        // Поперечная линия пересекает коридор крестом в (28,6), без моста.
+        Assert.True(line.Builder.BuildPath("rail", P(28, 2), P(28, 10)).CanBuild);
+        var rails = (TrackNetworkLayer)line.Map.Networks["rail"];
+        Assert.True(rails.PiecesAt(P(28, 6)).IsCrossing());
+
+        var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
+        var acrossOtherLine = new Rail.TrackSegment(P(28, 6), TrackPieces.NorthSouth, false);
+        var (passedStraight, heldCross) = (false, false);
+        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 3, () =>
+        {
+            passedStraight |= train.Path.Any(p => p.Cell == P(28, 6) && p.Entry == Core.Grid.Direction.West && p.Exit == Core.Grid.Direction.East);
+            heldCross |= line.Transport.Rail("rail").Reservations.ConflictWith(acrossOtherLine, new VehicleId(999)) == train.Id;
+        }));
+        Assert.True(passedStraight, "поезд не прошёл крест прямо");
+        Assert.True(heldCross, "закреплённый путь через крест не мешает поперечной линии");
+    }
+
+    [Fact]
     public void Level_crossing_closes_for_trucks_while_train_passes()
     {
         var line = new Corridor();

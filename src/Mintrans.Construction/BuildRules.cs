@@ -62,8 +62,8 @@ public sealed class FacilityCellRule(ConstructionCatalog catalog) : INetworkCell
 }
 
 /// <summary>
-/// Рельсы (docs/10б): в клетке — только стандартная конфигурация кусков. Две прямые не пересекаются
-/// в одном уровне — для этого нужен мост. Где стоит сигнал, стрелку не построить: сигнал на стрелке не ставится.
+/// Рельсы (docs/10б): в клетке — только стандартная конфигурация кусков. Крест двух прямых допустим,
+/// но без поворотов в той же клетке. Где стоит сигнал, стрелку или крест не построить: на них сигнал не ставится.
 /// </summary>
 public sealed class TrackLayoutRule : INetworkCellRule
 {
@@ -73,9 +73,9 @@ public sealed class TrackLayoutRule : INetworkCellRule
             return null;
         var after = tracks.PiecesAt(step.Cell) | TrackNetworkLayer.PieceOf(step);
         if (!after.IsValid())
-            return new BuildProblem("level_crossing", "Ж/д линии не пересекаются в одном уровне — нужен мост.", step.Cell);
-        if (after.IsJunction() && tracks.SignalsAt(step.Cell).Any())
-            return new BuildProblem("signal_on_junction", "На клетке сигнал — стрелку здесь не построить.", step.Cell);
+            return new BuildProblem("cross_with_turn", "На кресте путей нельзя повернуть — перенесите стрелку на соседнюю клетку.", step.Cell);
+        if (!after.IsSimple() && tracks.SignalsAt(step.Cell).Any())
+            return new BuildProblem("signal_on_junction", "На клетке сигнал — стрелку или крест здесь не построить.", step.Cell);
         return null;
     }
 }

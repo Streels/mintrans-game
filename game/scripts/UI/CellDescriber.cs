@@ -30,7 +30,9 @@ public static class CellDescriber
             var strokes = network.StrokesAt(cell).Select(s => s.From is { } from
                 ? $"{names[from.ToString()]}–{names[s.To.ToString()]}"
                 : names[s.To.ToString()]);
-            var kind = network is TrackNetworkLayer rails && rails.PiecesAt(cell).IsJunction() ? " (стрелка)" : "";
+            var kind = network is TrackNetworkLayer rails
+                ? rails.PiecesAt(cell).IsJunction() ? " (стрелка)" : rails.PiecesAt(cell).IsCrossing() ? " (крест)" : ""
+                : "";
             yield return $"{names[network.Type.Value]}: {string.Join(", ", strokes)}{kind}";
             if (network.BridgeAt(cell) is { } bridge)
                 yield return $"Опора моста: {names[bridge.Kind.Value]}, {bridge.Length} кл.";

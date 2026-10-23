@@ -378,8 +378,8 @@ public sealed class Builder
         var pieces = rails.PiecesAt(from);
         if (pieces == TrackPieces.None)
             problems.Add(new BuildProblem("no_track", "Сигнал ставится на ж/д путь.", from));
-        else if (pieces.IsJunction())
-            problems.Add(new BuildProblem("junction", "На стрелке сигнал не ставится — поставьте его до или после неё.", from));
+        else if (!pieces.IsSimple())
+            problems.Add(new BuildProblem("junction", "На стрелке и кресте сигнал не ставится — поставьте его до или после.", from));
         if (_map.Networks.Layers.Any(n => n.BridgeAt(from) is not null))
             problems.Add(new BuildProblem("bridge_head", "На опоре моста сигнал не ставится.", from));
         if (_map.Networks.Layers.Any(n => n.Type != definition.Network && n.HasAny(from)))
