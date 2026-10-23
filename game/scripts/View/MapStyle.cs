@@ -41,6 +41,12 @@ public sealed class MapStyle
     public required Color Highlight { get; init; }
     public required RailStyle Rail { get; init; }
 
+    /// <summary>Паспорт набора спрайтов вагонов (res://…json) или null — поезда рисуются линией.</summary>
+    public string? TrainSprites { get; init; }
+
+    /// <summary>Длина одного нарисованного вагона в клетках: от неё зависит размер спрайта и число вагонов в составе.</summary>
+    public float TrainCarCells { get; init; } = 0.5f;
+
     public SiteStyle SiteFor(TypeId type) => Sites.TryGetValue(type, out var style) ? style : DefaultSite;
 
     public SiteStyle PartFor(TypeId kind, SiteStyle site) => Parts.TryGetValue(kind, out var style) ? style : site;
@@ -82,6 +88,8 @@ public sealed class MapStyle
                 Parse(rail.Get("bridgeDeck")), Parse(rail.Get("bridgeEdge")), Parse(rail.Get("bridgePier")), rail.Int("liftLevels"),
                 Parse(rail.Get("signalPost")), Parse(rail.Get("signalGreen")), Parse(rail.Get("signalRed")),
                 Parse(rail.Get("crossingOpen")), Parse(rail.Get("crossingClosed")), Parse(rail.Get("wreck"))),
+            TrainSprites = root.Find("trains")?.Find("sprites")?.AsString(),
+            TrainCarCells = (float)(root.Find("trains")?.Find("carCells")?.AsDouble() ?? 0.5),
         };
     }
 

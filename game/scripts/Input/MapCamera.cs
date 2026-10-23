@@ -11,7 +11,9 @@ public partial class MapCamera : Camera2D
     private const float PanSpeed = 900f;
     private const float ZoomStep = 1.15f;
     private const float MinZoom = 0.05f;
-    private const float MaxZoom = 6f;
+
+    /// <summary>Самое сильное приближение: вагоны набора спрайтов остаются чёткими примерно до 37× (кадр 1:1).</summary>
+    private const float MaxZoom = 32f;
 
     private bool _dragging;
 

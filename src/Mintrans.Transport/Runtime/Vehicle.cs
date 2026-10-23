@@ -132,6 +132,10 @@ public sealed class Vehicle
     /// <summary>Следующая клетка пути или null.</summary>
     public GridPos? NextCell => NextPoint?.Cell;
 
+    /// <summary>До <paramref name="count"/> следующих точек маршрута после головы — для плавного показа движения между часами.</summary>
+    public IReadOnlyList<RoutePoint> PointsAhead(int count) =>
+        Path.Skip(PathIndex + 1).Take(Math.Max(0, count)).ToList();
+
     /// <summary>Поведение у красного сигнала (настройка поезда, docs/10а).</summary>
     public RedSignalBehavior RedSignal { get; set; } = RedSignalBehavior.Wait;
 

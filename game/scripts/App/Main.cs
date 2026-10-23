@@ -60,7 +60,9 @@ public partial class Main : Node2D
         {
             var scenario = new UiScenario { ScreenshotPath = args.Screenshot };
             AddChild(scenario);
-            scenario.Init(_map, _projection, demo, simulation.Run);
+            scenario.Init(_map, _projection, demo, simulation.Run, () => _transport?.Vehicles
+                .Where(v => v.Network.Trains && v.State is VehicleState.Travelling or VehicleState.Loading or VehicleState.Unloading)
+                .Select(v => (Core.Grid.GridPos?)v.Position).FirstOrDefault());
         }
         else if (args.Screenshot is { } path)
             AddChild(new ScreenshotCapture { Path = path });
@@ -125,7 +127,7 @@ public partial class Main : Node2D
         AddChild(driver);
         driver.Init(simulation, content.Simulation);
         driver.Runner.Paused = args.Paused;
-        vehicles.Init(map, _projection, transport, driver.Runner, style);
+        vehicles.Init(map, _projection, transport, driver.Runner, style, LoadTrainSprites(style));
         signals.Init(map, _projection, style, transport);
 
         // Панель депо: покупка техники и маршруты.
@@ -221,6 +223,22 @@ public partial class Main : Node2D
                 : $"Пункт ({_names[stop.Network.Value]}): техники {here.Count}, в очереди {queued}");
         }
         _hud.SetCellInfo(lines);
+    }
+
+    /// <summary>Набор спрайтов вагонов из стиля; если его нет или он не читается — поезда рисуются линией.</summary>
+    private static TrainSprites? LoadTrainSprites(MapStyle style)
+    {
+        if (style.TrainSprites is not { } path)
+            return null;
+        try
+        {
+            return TrainSprites.Load(path);
+        }
+        catch (Exception e)
+        {
+            GD.PushWarning($"Спрайты поездов не загружены, рисую линией: {e.Message}");
+            return null;
+        }
     }
 
     private Rect2 MapBounds(WorldMap map)
