@@ -170,6 +170,17 @@ public partial class FleetPanel : PanelContainer
             _body.AddChild(wagons);
         }
 
+        if (vehicle.Network.Trains)
+        {
+            // docs/10а: поведение у красного сигнала — настройка поезда.
+            var behavior = vehicle.RedSignal == RedSignalBehavior.Wait ? "ждать" : "разворачиваться";
+            _body.AddChild(MakeButton($"У красного сигнала: {behavior}", () =>
+            {
+                vehicle.RedSignal = vehicle.RedSignal == RedSignalBehavior.Wait ? RedSignalBehavior.Reverse : RedSignalBehavior.Wait;
+                Refresh();
+            }));
+        }
+
         var (a, b) = Draft(vehicle);
         _body.AddChild(RouteRow('A', a, vehicle));
         _body.AddChild(RouteRow('B', b, vehicle));

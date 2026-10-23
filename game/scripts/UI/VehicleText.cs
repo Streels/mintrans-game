@@ -11,6 +11,8 @@ public static class VehicleText
         VehicleState.InDepot => "в депо, без маршрута",
         VehicleState.Servicing => $"на обслуживании ({vehicle.HoursInState} ч)",
         VehicleState.Stuck => $"стоит: {vehicle.Reason}",
+        VehicleState.Crashed => $"разбит в крушении ({vehicle.HoursInState} ч назад)",
+        VehicleState.Travelling when vehicle.BlockedHours > 0 => $"{vehicle.Reason} — {vehicle.BlockedHours} ч",
         _ => vehicle.Reason,
     };
 

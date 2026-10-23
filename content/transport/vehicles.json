@@ -6,12 +6,12 @@
 // length — единиц длины (2 единицы на клетку пути), maxWagons — сколько вагонов тянет локомотив.
 {
   "networks": [
-    // stopSlots — сколько единиц техники пункт обслуживает одновременно (docs/12: от 2 до 10), остальные ждут.
-    // wagonsPerStopCell — одна клетка платформы обслуживает два вагона; состав длиннее платформы
-    // обрабатывается по частям, перестановка между частями занимает shuntHours часов (временное значение).
+    // stopSlots — сколько машин пункт обслуживает одновременно (docs/12: от 2 до 10), остальные ждут.
+    // У поездов мест столько, сколько у станции путей (docs/10), а очередь регулируют сигналы.
+    // wagonsPerStopCell — вдоль клетки платформы стоят два вагона; состав длиннее платформы
+    // обрабатывается медленнее — пропорционально тому, какая его часть помещается у платформы.
     { "network": "rail", "depot": "rail_depot", "stopParts": ["rail_station"], "stopFacilities": [],
-      "unitsPerCell": 2, "trains": true,
-      "stopSlots": { "rail_station": 2 }, "wagonsPerStopCell": 2, "shuntHours": 2 },
+      "unitsPerCell": 2, "trains": true, "wagonsPerStopCell": 2 },
     { "network": "road", "depot": "truck_garage", "stopParts": ["truck_station"], "stopFacilities": ["city_truck_stop"],
       "unitsPerCell": 1, "trains": false,
       "stopSlots": { "truck_station": 4, "city_truck_stop": 4 } }
@@ -83,5 +83,17 @@
   "maintenance": { "wearPerCell": 0.0005, "serviceAt": 0.8, "serviceHours": 24 },
 
   // Сколько часов ждать полной загрузки, прежде чем ехать с тем, что уже погружено.
-  "loading": { "maxWaitHours": 48 }
+  "loading": { "maxWaitHours": 48 },
+
+  // Движение поездов по сигналам (docs/10а, docs/12). Все числа временные.
+  //   occupiedDelayHours — ожидаемая задержка за занятый другим поездом участок при выборе маршрута;
+  //   reverseDelayHours  — ожидаемая задержка разворота при выборе маршрута;
+  //   reverseAfterHours  — через сколько часов у красного сигнала разворачивается поезд с такой настройкой;
+  //   stuckWarningHours  — через сколько часов стоянки у красного сигнала игрок получает предупреждение;
+  //   wreckHours         — сколько часов обломки после крушения занимают путь;
+  //   crossingCloseCells — за сколько клеток подходящий поезд закрывает переезд для машин.
+  "railTraffic": {
+    "occupiedDelayHours": 6, "reverseDelayHours": 2, "reverseAfterHours": 6,
+    "stuckWarningHours": 48, "wreckHours": 48, "crossingCloseCells": 2
+  }
 }

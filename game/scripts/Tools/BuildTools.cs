@@ -54,8 +54,9 @@ public sealed class StationTool(Builder builder, TypeId station) : IBuildTool
 
     private static ToolPreview Describe(StationPlan plan)
     {
+        var tracks = plan.Station.MaxTracks > 1 ? $", путей: {plan.Tracks}" : "";
         var message = plan.Problems.Count > 0 ? plan.Problems[0].Message
-            : $"Станция у «{plan.Target!.Name}», клеток: {plan.Cells.Count}";
+            : $"Станция у «{plan.Target!.Name}», длина {plan.Length}{tracks}";
         return new ToolPreview(plan.Cells, PathTool.BadCells(plan.Problems), plan.CanBuild, message);
     }
 }
@@ -81,6 +82,56 @@ public sealed class FacilityTool(Builder builder, TypeId facility) : IBuildTool
     }
 }
 
+/// <summary>Мост (docs/10б): протянуть от опоры до опоры по прямой.</summary>
+public sealed class BridgeTool(Builder builder, TypeId bridge) : IBuildTool
+{
+    public string Id => bridge.Value;
+
+    public ToolPreview Preview(GridPos from, GridPos to) => Describe(builder.PlanBridge(bridge, from, to), from == to);
+
+    public ToolPreview Apply(GridPos from, GridPos to) => Describe(builder.BuildBridge(bridge, from, to), false);
+
+    private static ToolPreview Describe(BridgePlan plan, bool idle)
+    {
+        var message = idle ? "Протяните от опоры до опоры по прямой: пролёт пройдёт над путями, дорогами и водой"
+            : plan.Problems.Count > 0 ? plan.Problems[0].Message
+            : $"Мост: {plan.Cells.Count} кл.";
+        return new ToolPreview(plan.Cells, PathTool.BadCells(plan.Problems), plan.CanBuild, message);
+    }
+}
+
+/// <summary>Сигнал (docs/10а): щелчок — двусторонний, протяжка вдоль пути — односторонний в сторону протяжки.</summary>
+public sealed class SignalTool(Builder builder, TypeId signal) : IBuildTool
+{
+    public string Id => signal.Value;
+
+    public ToolPreview Preview(GridPos from, GridPos to) => Describe(builder.PlanSignal(signal, from, to));
+
+    public ToolPreview Apply(GridPos from, GridPos to) => Describe(builder.BuildSignal(signal, from, to));
+
+    private static ToolPreview Describe(SignalPlan plan)
+    {
+        var message = plan.Problems.Count > 0 ? plan.Problems[0].Message
+            : plan.Signal!.TwoWay ? "Двусторонний: протяните вдоль пути, чтобы сделать односторонним"
+            : "Односторонний — в сторону протяжки";
+        return new ToolPreview(plan.Cells, PathTool.BadCells(plan.Problems), plan.CanBuild, message);
+    }
+}
+
+/// <summary>Снять сигналы прямоугольником; пути остаются.</summary>
+public sealed class SignalRemoveTool(Builder builder) : IBuildTool
+{
+    public string Id => "tool.remove_signals";
+
+    public ToolPreview Preview(GridPos from, GridPos to) => Describe(builder.PlanRemoveSignals(from, to));
+
+    public ToolPreview Apply(GridPos from, GridPos to) => Describe(builder.RemoveSignals(from, to));
+
+    private static ToolPreview Describe(BuildPlan plan) =>
+        new(plan.Cells, PathTool.BadCells(plan.Problems), plan.CanBuild,
+            plan.Problems.Count > 0 ? plan.Problems[0].Message : $"Снять сигналы: клеток {plan.Cells.Count}");
+}
+
 /// <summary>Снос прямоугольником: сети и станции.</summary>
 public sealed class DemolishTool(Builder builder) : IBuildTool
 {
@@ -97,12 +148,15 @@ public sealed class DemolishTool(Builder builder) : IBuildTool
 
 public static class BuildTools
 {
-    /// <summary>Инструменты по правилам строительства: по одному на каждую сеть и станцию, плюс снос.</summary>
+    /// <summary>Инструменты по правилам строительства: по одному на каждую сеть, мост, станцию, сигнал, плюс снос.</summary>
     public static IReadOnlyList<IBuildTool> Create(Builder builder) =>
     [
         .. builder.Catalog.Networks.Select(n => (IBuildTool)new PathTool(builder, n.Network)),
+        .. builder.Catalog.Bridges.Select(b => (IBuildTool)new BridgeTool(builder, b.Id)),
         .. builder.Catalog.Stations.Select(s => (IBuildTool)new StationTool(builder, s.Id)),
         .. builder.Catalog.Facilities.Select(f => (IBuildTool)new FacilityTool(builder, f.Id)),
+        .. builder.Catalog.Signals.Select(s => (IBuildTool)new SignalTool(builder, s.Id)),
+        .. builder.Catalog.Signals.Count > 0 ? new IBuildTool[] { new SignalRemoveTool(builder) } : [],
         new DemolishTool(builder),
     ];
 }

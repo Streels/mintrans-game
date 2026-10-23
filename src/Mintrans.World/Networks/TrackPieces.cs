@@ -47,6 +47,42 @@ public static class Tracks
 
     public static bool IsStraight(this TrackPieces piece) => piece is TrackPieces.NorthSouth or TrackPieces.EastWest;
 
+    /// <summary>Прямой кусок вдоль стороны: север или юг — «север–юг», восток или запад — «восток–запад».</summary>
+    public static TrackPieces StraightThrough(Direction side) => Between(side, side.Opposite());
+
     public static IEnumerable<TrackPieces> Enumerate(this TrackPieces pieces) =>
         AllPieces.Where(p => (pieces & p) != 0);
+
+    public static int Count(this TrackPieces pieces) => System.Numerics.BitOperations.PopCount((uint)pieces);
+
+    /// <summary>
+    /// Допустима ли конфигурация клетки (docs/10б). Куски, сходящиеся у одной стороны, — стрелка;
+    /// параллельные угловые — два независимых пути. Две прямые пересекаются в центре клетки —
+    /// это пересечение линий в одном уровне, для него нужен мост.
+    /// </summary>
+    public static bool IsValid(this TrackPieces pieces) =>
+        (pieces & (TrackPieces.NorthSouth | TrackPieces.EastWest)) != (TrackPieces.NorthSouth | TrackPieces.EastWest);
+
+    /// <summary>Два параллельных угловых куска: лежат в одной клетке, не касаясь друг друга.</summary>
+    public static bool IsParallelPair(this TrackPieces pieces) =>
+        pieces is (TrackPieces.NorthEast | TrackPieces.SouthWest) or (TrackPieces.NorthWest | TrackPieces.SouthEast);
+
+    /// <summary>Стрелка: несколько кусков, которые сходятся у общей стороны клетки.</summary>
+    public static bool IsJunction(this TrackPieces pieces) => pieces.Count() > 1 && !pieces.IsParallelPair();
+
+    /// <summary>Мешают ли куски друг другу в одной клетке (как в OpenTTD: свободны только параллельные угловые).</summary>
+    public static bool Overlap(TrackPieces a, TrackPieces b) => (a & b) != 0 || !(a | b).IsParallelPair();
+
+    /// <summary>Сторона куска напротив <paramref name="side"/>.</summary>
+    public static Direction OtherSide(this TrackPieces piece, Direction side)
+    {
+        var (a, b) = piece.Sides();
+        return side == a ? b : side == b ? a : throw new ArgumentException($"Кусок {piece} не выходит к стороне {side}.");
+    }
+
+    public static bool Touches(this TrackPieces piece, Direction side)
+    {
+        var (a, b) = piece.Sides();
+        return a == side || b == side;
+    }
 }

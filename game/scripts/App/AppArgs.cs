@@ -4,7 +4,7 @@ namespace Mintrans.Game.App;
 
 /// <summary>
 /// Параметры запуска после "--" в командной строке Godot:
-/// --content=путь  --map=prototype  --focus=city  --zoom=1.5  --screenshot=файл.png
+/// --content=путь  --map=prototype  --focus=city (или --focus=x,y)  --zoom=1.5  --screenshot=файл.png
 /// --paused (начать на паузе)  --hours=26 (сразу промотать столько игровых часов)
 /// --ui-demo[=build|chain] (сценарий проверки интерфейса мышью; с --screenshot сохраняет кадр в конце)
 /// </summary>

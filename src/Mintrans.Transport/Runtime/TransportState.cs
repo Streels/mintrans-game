@@ -1,6 +1,8 @@
+using Mintrans.Core.Grid;
 using Mintrans.Core.Ids;
 using Mintrans.Economy;
 using Mintrans.Transport.Definitions;
+using Mintrans.Transport.Rail;
 using Mintrans.Transport.Stops;
 using Mintrans.World;
 using Mintrans.World.Facilities;
@@ -46,6 +48,30 @@ public sealed class TransportState
 
     public TransportCatalog Catalog { get; }
     public StopIndex Stops { get; }
+
+    private readonly Dictionary<TypeId, RailTraffic> _rail = new();
+
+    /// <summary>Сигнализация и занятость путей рельсовой сети (docs/10а).</summary>
+    public RailTraffic Rail(TypeId network)
+    {
+        if (!_rail.TryGetValue(network, out var traffic))
+            _rail[network] = traffic = new RailTraffic(_map, this, Catalog.Network(network));
+        return traffic;
+    }
+
+    /// <summary>Рельсовые сети, по которым ездят поезда.</summary>
+    public IEnumerable<RailTraffic> RailNetworks => Catalog.Networks.Where(n => n.Trains).Select(n => Rail(n.Network));
+
+    /// <summary>Закрыт ли переезд в клетке хоть одной рельсовой сетью.</summary>
+    public bool IsCrossingClosed(GridPos cell) => RailNetworks.Any(r => r.IsCrossingClosed(cell));
+
+    /// <summary>Убрать технику из игры (обломки после крушения).</summary>
+    internal void Remove(Vehicle vehicle)
+    {
+        if (vehicle.Network.Trains)
+            Rail(vehicle.Network.Network).Forget(vehicle);
+        _vehicles.Remove(vehicle.Id.Value);
+    }
 
     /// <summary>Вся техника в постоянном порядке — расчёт воспроизводим.</summary>
     public IEnumerable<Vehicle> Vehicles => _vehicles.Values;
@@ -156,12 +182,14 @@ public sealed class TransportState
         if (problems.Count > 0)
             throw new FleetException(string.Join(" ", problems));
         var vehicle = this[id];
+        if (vehicle.State == VehicleState.Crashed)
+            throw new FleetException($"{vehicle.Name} разбит.");
         vehicle.A = a;
         vehicle.B = b;
         if (vehicle.State is VehicleState.InDepot or VehicleState.Stuck or VehicleState.Travelling)
         {
             vehicle.Leg = Leg.ToA;
-            vehicle.Path = [];
+            vehicle.ClearPath();
             vehicle.SetState(VehicleState.Travelling);
         }
     }

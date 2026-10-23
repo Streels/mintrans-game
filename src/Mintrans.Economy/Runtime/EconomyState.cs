@@ -5,25 +5,30 @@ using Mintrans.World;
 namespace Mintrans.Economy.Runtime;
 
 /// <summary>
-/// Общий баланс по ресурсам за всю игру: сколько задано сценарием, произведено и потреблено.
-/// По нему проверяется сохранение груза: запасы + груз в пути = начальные + произведено − потреблено.
+/// Общий баланс по ресурсам за всю игру: сколько задано сценарием, произведено, потреблено и потеряно.
+/// По нему проверяется сохранение груза: запасы + груз в пути = начальные + произведено − потреблено − потеряно.
 /// </summary>
 public sealed class EconomyTotals
 {
     private readonly Dictionary<TypeId, Mass> _seeded = new();
     private readonly Dictionary<TypeId, Mass> _produced = new();
     private readonly Dictionary<TypeId, Mass> _consumed = new();
+    private readonly Dictionary<TypeId, Mass> _lost = new();
 
     public Mass Seeded(TypeId resource) => _seeded.GetValueOrDefault(resource);
     public Mass Produced(TypeId resource) => _produced.GetValueOrDefault(resource);
     public Mass Consumed(TypeId resource) => _consumed.GetValueOrDefault(resource);
 
+    /// <summary>Сколько груза погибло вне складов — например, в крушении поезда (docs/10а).</summary>
+    public Mass Lost(TypeId resource) => _lost.GetValueOrDefault(resource);
+
     /// <summary>Сколько ресурса должно существовать в мире (на складах и в транспорте).</summary>
-    public Mass Expected(TypeId resource) => Seeded(resource) + Produced(resource) - Consumed(resource);
+    public Mass Expected(TypeId resource) => Seeded(resource) + Produced(resource) - Consumed(resource) - Lost(resource);
 
     internal void AddSeeded(TypeId resource, Mass mass) => _seeded[resource] = Seeded(resource) + mass;
     internal void AddProduced(TypeId resource, Mass mass) => _produced[resource] = Produced(resource) + mass;
     internal void AddConsumed(TypeId resource, Mass mass) => _consumed[resource] = Consumed(resource) + mass;
+    internal void AddLost(TypeId resource, Mass mass) => _lost[resource] = Lost(resource) + mass;
 }
 
 /// <summary>
@@ -54,6 +59,16 @@ public sealed class EconomyState
 
     /// <summary>Сколько ресурса сейчас лежит на всех складах.</summary>
     public Mass InStock(TypeId resource) => Sites.Aggregate(Mass.Zero, (sum, s) => sum + s.Stock.Amount(resource));
+
+    /// <summary>
+    /// Списать груз, погибший вне складов (крушение). Груз уже снят с техники вызывающим модулем;
+    /// здесь он только учитывается в балансе, чтобы проверка сохранения груза сходилась.
+    /// </summary>
+    public void WriteOff(TypeId resource, Mass mass)
+    {
+        if (mass > Mass.Zero)
+            Totals.AddLost(resource, mass);
+    }
 
     /// <summary>Задать начальный запас объекта из сценария.</summary>
     public void Seed(SiteId site, TypeId resource, Mass mass)

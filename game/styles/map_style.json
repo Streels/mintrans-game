@@ -17,6 +17,14 @@
     "road": { "color": "#ddd3b8", "width": 3 },
     "rail": { "color": "#3c3530", "width": 3 }
   },
+  // Железнодорожная обстановка: мосты (настил на уровень выше рельефа, liftLevels — на сколько уровней),
+  // сигналы (зелёный/красный, у маршрутного — квадратный огонь), переезды (открыт/закрыт), обломки после крушения.
+  "rail": {
+    "bridgeDeck": "#8a7f72", "bridgeEdge": "#2e2a26", "bridgePier": "#5b544b", "liftLevels": 3,
+    "signalPost": "#1c1c1f", "signalGreen": "#4ee06a", "signalRed": "#ff4a3d",
+    "crossingOpen": "#f2efe6", "crossingClosed": "#ff4a3d",
+    "wreck": "#2a2522"
+  },
   "defaultSite": { "fill": "#ff00ff66", "outline": "#ff00ff" },
   "sites": {
     "city":        { "fill": "#b5a99a99", "outline": "#efe6da" },

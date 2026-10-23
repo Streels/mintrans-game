@@ -2,6 +2,7 @@ using Mintrans.Core.Grid;
 using Mintrans.Core.Ids;
 using Mintrans.Transport.Definitions;
 using Mintrans.World;
+using Mintrans.World.Networks;
 
 namespace Mintrans.Transport.Stops;
 
@@ -18,11 +19,12 @@ public readonly record struct StopRef(string Value)
 /// Пункт погрузки и выгрузки: клетки на сети и объект, чей склад он обслуживает
 /// (шахта, завод — для своих станций; город — для городского пункта).
 /// </summary>
-/// <param name="Slots">Сколько единиц техники пункт обслуживает одновременно.</param>
-public sealed record Stop(StopRef Ref, string Name, TypeId Network, GridRect Area, SiteId Owner, int Slots = 1)
+/// <param name="Slots">Сколько единиц техники пункт обслуживает одновременно; у ж/д станции — число её путей (docs/10).</param>
+/// <param name="PlatformLength">Длина платформы вдоль путей; null — длинная сторона пункта.</param>
+public sealed record Stop(StopRef Ref, string Name, TypeId Network, GridRect Area, SiteId Owner, int Slots = 1, int? PlatformLength = null)
 {
-    /// <summary>Длина пункта в клетках — по ней проверяется, помещается ли состав.</summary>
-    public int Length => Math.Max(Area.Width, Area.Height);
+    /// <summary>Длина пункта в клетках — по ней видно, помещается ли состав у платформы целиком.</summary>
+    public int Length => PlatformLength ?? Math.Max(Area.Width, Area.Height);
 
     public bool Contains(GridPos cell) => Area.Contains(cell);
 }
@@ -62,7 +64,10 @@ public sealed class StopIndex(WorldMap map, TransportCatalog catalog)
                 foreach (var part in site.Parts.Where(p => network.StopParts.Contains(p.Kind)))
                 {
                     var reference = new StopRef($"part:{site.Key}:{part.Area.X},{part.Area.Y}");
-                    _stops.Add(new Stop(reference, site.Name, network.Network, part.Area, site.Id, network.SlotsOf(part.Kind)));
+                    var (slots, length) = network.Trains
+                        ? Platform(part.Area, network.Network)
+                        : (network.SlotsOf(part.Kind), Math.Max(part.Area.Width, part.Area.Height));
+                    _stops.Add(new Stop(reference, site.Name, network.Network, part.Area, site.Id, slots, length));
                 }
             }
             foreach (var facility in map.Facilities.All.Where(f => network.StopFacilities.Contains(f.Kind)))
@@ -74,5 +79,12 @@ public sealed class StopIndex(WorldMap map, TransportCatalog catalog)
             }
         }
         _builtRevision = revision;
+    }
+
+    /// <summary>Ж/д станция: пути идут вдоль уложенных прямых; сколько их и какой длины платформа.</summary>
+    private (int Tracks, int Length) Platform(GridRect area, TypeId network)
+    {
+        var alongY = map.Networks[network] is TrackNetworkLayer rails && (rails.PiecesAt(area.Origin) & TrackPieces.NorthSouth) != 0;
+        return alongY ? (area.Width, area.Height) : (area.Height, area.Width);
     }
 }

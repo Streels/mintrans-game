@@ -27,7 +27,10 @@ public static class ConstructionLoader
             var maxLength = node.Int("maxLength");
             if (maxLength <= 0)
                 throw node.Get("maxLength").Error("длина станции должна быть положительной");
-            return new StationDefinition(node.String("id"), Network(node.Get("network")), Ids(node.Get("attachTo")), maxLength);
+            var maxTracks = node.Int("maxTracks", 1);
+            if (maxTracks <= 0)
+                throw node.Get("maxTracks").Error("число путей станции должно быть положительным");
+            return new StationDefinition(node.String("id"), Network(node.Get("network")), Ids(node.Get("attachTo")), maxLength, maxTracks);
         }).ToList();
 
         var withoutRules = stations.Select(s => s.Network).Except(builds.Select(b => b.Network)).ToList();
@@ -55,7 +58,38 @@ public static class ConstructionLoader
                 node.Int("maxLength", 1));
         }).ToList() ?? [];
 
-        return new ConstructionCatalog(builds, stations, forbidden, facilities);
+        var bridges = root.Find("bridges")?.Items().Select(node =>
+        {
+            var maxLength = node.Int("maxLength");
+            if (maxLength < 3)
+                throw node.Get("maxLength").Error("мост — хотя бы три клетки: две опоры и пролёт");
+            return new BridgeDefinition(node.String("id"), Network(node.Get("network")), maxLength);
+        }).ToList() ?? [];
+
+        var layouts = networks.ToDictionary(n => n.Id, n => n.Layout);
+        var signals = root.Find("signals")?.Items().Select(node =>
+        {
+            var network = Network(node.Get("network"));
+            if (layouts[network] != TrackNetworkLayer.LayoutName)
+                throw node.Get("network").Error($"сигналы ставятся только на рельсовую сеть (layout «{TrackNetworkLayer.LayoutName}»)");
+            var logic = node.String("logic") switch
+            {
+                "block" => SignalLogic.Block,
+                "path" => SignalLogic.Path,
+                var other => throw node.Get("logic").Error($"неизвестная логика сигнала «{other}»: нужно block или path"),
+            };
+            return new SignalDefinition(node.String("id"), network, logic);
+        }).ToList() ?? [];
+
+        var crossings = root.Find("levelCrossings")?.Items().Select(node =>
+        {
+            var pair = node.Items().ToList();
+            if (pair.Count != 2)
+                throw node.Error("переезд задаётся парой сетей [\"road\", \"rail\"]");
+            return new LevelCrossing(Network(pair[0]), Network(pair[1]));
+        }).ToList() ?? [];
+
+        return new ConstructionCatalog(builds, stations, forbidden, facilities, bridges, signals, crossings);
     }
 
     private static List<TypeId> Ids(JsonNode node) => node.Items().Select(i => new TypeId(i.AsString())).ToList();

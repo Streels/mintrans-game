@@ -1,5 +1,6 @@
 using Godot;
 using Mintrans.Construction;
+using Mintrans.Core.Grid;
 using Mintrans.Data;
 using Mintrans.Data.Definitions;
 using Mintrans.Economy.Runtime;
@@ -91,9 +92,11 @@ public partial class Main : Node2D
         AddChild(facilities);
         facilities.Init(map, _projection, style);
 
-        // Техника рисуется поверх сетей; данные для неё появятся ниже, вместе с симуляцией.
+        // Техника рисуется поверх сетей, сигналы и переезды — поверх техники; данные для них появятся ниже, вместе с симуляцией.
         var vehicles = new VehicleView { Name = "Vehicles" };
         AddChild(vehicles);
+        var signals = new SignalView { Name = "Signals" };
+        AddChild(signals);
 
         _highlight = new CellHighlight { Name = "Highlight" };
         AddChild(_highlight);
@@ -121,17 +124,19 @@ public partial class Main : Node2D
         AddChild(driver);
         driver.Init(simulation, content.Simulation);
         driver.Runner.Paused = args.Paused;
-        vehicles.Init(map, _projection, transport, driver.Runner);
+        vehicles.Init(map, _projection, transport, driver.Runner, style);
+        signals.Init(map, _projection, style, transport);
 
         // Панель депо: покупка техники и маршруты.
         _fleet = new FleetPanel { Name = "Fleet" };
         _hud.AddWidget(_fleet);
         _fleet.Init(transport, map, _names);
 
-        // Каждый час обновляются панель депо и панель клетки (очереди), раз в сутки — подписи объектов.
+        // Каждый час обновляются панель депо, панель клетки (очереди) и сигналы, раз в сутки — подписи объектов.
         simulation.StepCompleted += time =>
         {
             _fleet.Refresh();
+            signals.Refresh();
             RefreshCellInfo();
             if (time.IsStartOfDay)
                 labels.Refresh();
@@ -160,8 +165,12 @@ public partial class Main : Node2D
         _hud.AddWidget(toolBar);
         toolBar.Init(build, BuildTools.Create(builder), _names);
 
+        // --focus=ключ объекта или --focus=x,y клетки.
         if (args.Focus is { } key && map.Sites.TryGetByKey(key, out var site))
             _camera.Focus(_projection.CellCenter(site.Base.Center, SiteView.SiteHeight(map, site)), args.Zoom ?? 1.5f);
+        else if (args.Focus?.Split(',') is [var fx, var fy] && int.TryParse(fx, out var x) && int.TryParse(fy, out var y)
+                 && map.Contains(new GridPos(x, y)))
+            _camera.Focus(_projection.CellCenter(new GridPos(x, y), map.Terrain.Height[new GridPos(x, y)]), args.Zoom ?? 1.5f);
         else
             _camera.Fit(MapBounds(map));
     }

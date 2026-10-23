@@ -12,6 +12,12 @@ public sealed record LineStyle(Color Color, float Width);
 
 public sealed record SiteStyle(Color Fill, Color Outline);
 
+/// <summary>Мосты, сигналы, переезды и обломки (docs/10а, docs/10б). <see cref="LiftLevels"/> — насколько настил моста выше рельефа.</summary>
+public sealed record RailStyle(
+    Color BridgeDeck, Color BridgeEdge, Color BridgePier, int LiftLevels,
+    Color SignalPost, Color SignalGreen, Color SignalRed,
+    Color CrossingOpen, Color CrossingClosed, Color Wreck);
+
 /// <summary>
 /// Внешний вид карты из game/styles/map_style.json. Только оформление: на правила игры не влияет.
 /// Неизвестный вид рисуется ярко-розовым, чтобы пропуск в стиле сразу бросался в глаза.
@@ -33,6 +39,7 @@ public sealed class MapStyle
     /// <summary>Отдельный вид для частей площадки (станций, модулей); если нет — цвет объекта.</summary>
     public required IReadOnlyDictionary<TypeId, SiteStyle> Parts { get; init; }
     public required Color Highlight { get; init; }
+    public required RailStyle Rail { get; init; }
 
     public SiteStyle SiteFor(TypeId type) => Sites.TryGetValue(type, out var style) ? style : DefaultSite;
 
@@ -49,6 +56,7 @@ public sealed class MapStyle
 
         var height = root.Get("height");
         var cliffs = root.Get("cliffs");
+        var rail = root.Get("rail");
         return new MapStyle
         {
             TerrainLayers = root.Get("terrain").Items().Select(node => new TerrainLayerStyle(
@@ -70,6 +78,10 @@ public sealed class MapStyle
                 ? Properties(parts).ToDictionary(p => new TypeId(p.Name), p => Site(p.Node))
                 : new Dictionary<TypeId, SiteStyle>(),
             Highlight = Parse(root.Get("highlight")),
+            Rail = new RailStyle(
+                Parse(rail.Get("bridgeDeck")), Parse(rail.Get("bridgeEdge")), Parse(rail.Get("bridgePier")), rail.Int("liftLevels"),
+                Parse(rail.Get("signalPost")), Parse(rail.Get("signalGreen")), Parse(rail.Get("signalRed")),
+                Parse(rail.Get("crossingOpen")), Parse(rail.Get("crossingClosed")), Parse(rail.Get("wreck"))),
         };
     }
 
