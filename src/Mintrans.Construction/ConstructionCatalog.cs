@@ -1,3 +1,4 @@
+using Mintrans.Construction.Rail;
 using Mintrans.Core.Ids;
 using Mintrans.World.Networks;
 
@@ -77,8 +78,10 @@ public sealed class ConstructionCatalog
         IEnumerable<FacilityDefinition>? facilities = null,
         IEnumerable<BridgeDefinition>? bridges = null,
         IEnumerable<SignalDefinition>? signals = null,
-        IEnumerable<LevelCrossing>? levelCrossings = null)
+        IEnumerable<LevelCrossing>? levelCrossings = null,
+        RailEditorSettings? railEditor = null)
     {
+        RailEditor = railEditor ?? RailEditorSettings.Default;
         _networks = networks.ToDictionary(n => n.Network);
         _stations = stations.ToDictionary(s => s.Id);
         _facilities = (facilities ?? []).ToDictionary(f => f.Id);
@@ -87,6 +90,9 @@ public sealed class ConstructionCatalog
         LevelCrossings = (levelCrossings ?? []).ToList();
         ForbiddenTerrain = forbiddenTerrain.ToList();
     }
+
+    /// <summary>Параметры железнодорожного редактора на метрической геометрии (docs/10в).</summary>
+    public RailEditorSettings RailEditor { get; }
 
     public IReadOnlyCollection<BridgeDefinition> Bridges => _bridges.Values;
     public IReadOnlyCollection<SignalDefinition> Signals => _signals.Values;

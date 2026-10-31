@@ -55,3 +55,18 @@ public class PrototypeConstructionTests
     private static void Built(StationPlan plan) =>
         Assert.True(plan.CanBuild, string.Join("; ", plan.Problems.Select(p => p.Message)));
 }
+
+/// <summary>Параметры железнодорожного редактора v1 читаются из content/construction.json (docs/10в).</summary>
+public class RailEditorContentTests
+{
+    [Fact]
+    public void Rail_editor_settings_come_from_content()
+    {
+        var settings = ContentLocator.Load().Construction.RailEditor;
+        Assert.Equal(200, settings.MinRadiusM);
+        Assert.Equal([200, 250, 300, 400, 500, 750, 1000], settings.AllowedRadii);
+        Assert.Equal(90, settings.MaxArcSweepDeg);
+        Assert.Equal(1.35, settings.MaxDefaultDetourRatio);
+        Assert.Equal(2.0, settings.CorridorHalfWidthM);
+    }
+}

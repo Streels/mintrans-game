@@ -1,4 +1,5 @@
 using Mintrans.Construction;
+using Mintrans.Construction.Rail;
 using Mintrans.Core.Ids;
 using Mintrans.Data.Json;
 using Mintrans.World.Networks;
@@ -89,7 +90,35 @@ public static class ConstructionLoader
             return new LevelCrossing(Network(pair[0]), Network(pair[1]));
         }).ToList() ?? [];
 
-        return new ConstructionCatalog(builds, stations, forbidden, facilities, bridges, signals, crossings);
+        var railEditor = root.Find("railEditor") is { } editor ? RailEditor(editor) : RailEditorSettings.Default;
+
+        return new ConstructionCatalog(builds, stations, forbidden, facilities, bridges, signals, crossings, railEditor);
+    }
+
+    private static RailEditorSettings RailEditor(JsonNode node)
+    {
+        var defaults = RailEditorSettings.Default;
+        double Positive(string key, double fallback)
+        {
+            if (node.Find(key) is not { } value)
+                return fallback;
+            var number = value.AsDouble();
+            return number > 0 ? number : throw value.Error("значение должно быть положительным");
+        }
+
+        var minRadius = Positive("minRadiusM", defaults.MinRadiusM);
+        var radii = node.Find("radiusCandidatesM") is { } list
+            ? list.Items().Select(item => item.AsDouble()).ToList()
+            : defaults.RadiusCandidatesM.ToList();
+        if (!radii.Any(r => r >= minRadius))
+            throw (node.Find("radiusCandidatesM") ?? node).Error($"нет ни одного радиуса не меньше minRadiusM = {minRadius}");
+        var sweep = Positive("maxArcSweepDeg", defaults.MaxArcSweepDeg);
+        if (sweep > 180)
+            throw node.Get("maxArcSweepDeg").Error("дуга соединения не может быть больше 180°");
+        var detour = Positive("maxDefaultDetourRatio", defaults.MaxDefaultDetourRatio);
+        if (detour < 1)
+            throw node.Get("maxDefaultDetourRatio").Error("отношение длины к кратчайшей не может быть меньше 1");
+        return new RailEditorSettings(minRadius, radii, sweep, detour, Positive("corridorHalfWidthM", defaults.CorridorHalfWidthM));
     }
 
     private static List<TypeId> Ids(JsonNode node) => node.Items().Select(i => new TypeId(i.AsString())).ToList();
