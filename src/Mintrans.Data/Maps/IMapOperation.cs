@@ -69,5 +69,7 @@ public sealed class MapOperations
     [
         new Networks.LineOperation(),
         new Networks.GridOperation(),
+        new Networks.BridgeOperation(),
+        new Networks.SignalOperation(),
     ]);
 }

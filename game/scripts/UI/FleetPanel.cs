@@ -1,6 +1,8 @@
 using Godot;
 using Mintrans.Core.Grid;
+using Mintrans.Economy.Runtime;
 using Mintrans.Transport.Definitions;
+using Mintrans.Transport.Reports;
 using Mintrans.Transport.Runtime;
 using Mintrans.Transport.Stops;
 using Mintrans.World;
@@ -9,12 +11,15 @@ using Mintrans.World.Facilities;
 namespace Mintrans.Game.UI;
 
 /// <summary>
-/// Панель депо или автогаража (docs/10, docs/11): купить технику, собрать состав,
-/// выбрать пункты А и Б щелчком по карте и отправить по маршруту. Показывает состояние каждой машины.
+/// Панель депо или автогаража (docs/10, docs/11, docs/12): купить технику, собрать состав,
+/// выбрать пункты А и Б щелчком по карте и отправить по маршруту; остановить, возобновить, отправить в депо
+/// или на ТО, продать. Показывает состояние каждой машины и сводку по её направлению.
 /// </summary>
 public partial class FleetPanel : PanelContainer
 {
     private TransportState _transport = null!;
+    private EconomyState _economy = null!;
+    private Func<long> _today = null!;
     private WorldMap _map = null!;
     private DisplayNames _names = null!;
     private VBoxContainer _body = null!;
@@ -27,9 +32,12 @@ public partial class FleetPanel : PanelContainer
     /// <summary>Какой пункт сейчас выбирается щелчком по карте: 'A', 'B' или null.</summary>
     public char? Picking { get; private set; }
 
-    public void Init(TransportState transport, WorldMap map, DisplayNames names)
+    /// <param name="today">Номер текущих игровых суток — для фактической доставки за последние дни.</param>
+    public void Init(TransportState transport, EconomyState economy, Func<long> today, WorldMap map, DisplayNames names)
     {
         _transport = transport;
+        _economy = economy;
+        _today = today;
         _map = map;
         _names = names;
         MouseFilter = MouseFilterEnum.Stop;
@@ -160,6 +168,8 @@ public partial class FleetPanel : PanelContainer
         _body.AddChild(Text(vehicle.Name, 16));
         _body.AddChild(Text(VehicleText.Composition(vehicle), 14));
         _body.AddChild(Text(VehicleText.Details(vehicle, _names), 14));
+        _body.AddChild(Text(Capital(VehicleText.Status(vehicle, _transport)), 14));
+        AddControls(vehicle);
 
         if (vehicle.Network.Trains && vehicle.State == VehicleState.InDepot)
         {
@@ -168,6 +178,17 @@ public partial class FleetPanel : PanelContainer
                 wagons.AddChild(MakeButton($"+ {model.Title}", () => Act(() => _transport.AddWagon(vehicle.Id, model.Id))));
             wagons.AddChild(MakeButton("− вагон", () => Act(() => _transport.RemoveWagon(vehicle.Id))));
             _body.AddChild(wagons);
+        }
+
+        if (vehicle.Network.Trains)
+        {
+            // docs/10а: поведение у красного сигнала — настройка поезда.
+            var behavior = vehicle.RedSignal == RedSignalBehavior.Wait ? "ждать" : "разворачиваться";
+            _body.AddChild(MakeButton($"У красного сигнала: {behavior}", () =>
+            {
+                vehicle.RedSignal = vehicle.RedSignal == RedSignalBehavior.Wait ? RedSignalBehavior.Reverse : RedSignalBehavior.Wait;
+                Refresh();
+            }));
         }
 
         var (a, b) = Draft(vehicle);
@@ -190,6 +211,43 @@ public partial class FleetPanel : PanelContainer
             _message.Text = $"{vehicle.Name} отправлен по маршруту.";
         });
         _body.AddChild(send);
+
+        if (vehicle.A is { } routeA && vehicle.B is { } routeB)
+        {
+            var summary = RouteReport.Direction(_transport, _economy, routeA, routeB, _today());
+            _body.AddChild(Text(VehicleText.Direction(summary), 14));
+        }
+    }
+
+    /// <summary>
+    /// Управление на маршруте (docs/01, docs/11): остановить или возобновить, отправить в депо (остаться там)
+    /// или на ТО (с возвратом на маршрут), продать стоящую в депо технику без груза.
+    /// </summary>
+    private void AddControls(Vehicle vehicle)
+    {
+        var row = new HFlowContainer();
+        var state = vehicle.State;
+        if (state is VehicleState.Travelling or VehicleState.Stuck or VehicleState.Loading or VehicleState.Unloading)
+            row.AddChild(MakeButton("Остановить", () => Act(() => _transport.Stop(vehicle.Id))));
+        if (state == VehicleState.Stopped || (state == VehicleState.InDepot && vehicle.A is not null))
+            row.AddChild(MakeButton("Возобновить", () => Act(() => _transport.Resume(vehicle.Id))));
+        if (state is not (VehicleState.InDepot or VehicleState.Servicing or VehicleState.Crashed) && vehicle.Leg != Leg.ToDepot)
+            row.AddChild(MakeButton("В депо", () => Act(() => _transport.SendToDepot(vehicle.Id, service: false))));
+        if (state is not (VehicleState.Servicing or VehicleState.Crashed) && vehicle.Leg != Leg.ToDepot)
+            row.AddChild(MakeButton("На ТО", () => Act(() => _transport.SendToDepot(vehicle.Id, service: true))));
+        if (state == VehicleState.InDepot)
+            row.AddChild(MakeButton("Продать", () =>
+            {
+                Act(() => _transport.Sell(vehicle.Id));
+                if (_transport.Vehicles.All(v => v.Id != vehicle.Id))
+                {
+                    _selected = null;
+                    _message.Text = $"{vehicle.Name} продан.";
+                    Refresh();
+                }
+            }));
+        if (row.GetChildCount() > 0)
+            _body.AddChild(row);
     }
 
     private HBoxContainer RouteRow(char which, StopRef? stop, Vehicle vehicle)
@@ -223,6 +281,8 @@ public partial class FleetPanel : PanelContainer
         }
         Refresh();
     }
+
+    private static string Capital(string text) => text.Length == 0 ? text : char.ToUpper(text[0]) + text[1..];
 
     private static Label Text(string text, int size, bool expand = false)
     {

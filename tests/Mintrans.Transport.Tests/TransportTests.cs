@@ -11,15 +11,15 @@ public class TransportTests
     public void Path_goes_from_depot_through_switch_and_reverses_at_dead_end()
     {
         var line = new TestLine();
-        var mineStation = line.Transport.Stops.Find(line.Stop("coal_mine", "rail"))!;
-        var path = Pathfinder.Find(line.Map.Networks["rail"], line.Depot.Area.Origin,
-            mineStation.Area.Cells().ToHashSet(), farthest: true);
+        var plant = line.Transport.Stops.Find(line.Stop("steel_plant", "rail"))!;
+        var path = Pathfinder.Find(line.Map.Networks["rail"], new RoutePoint(line.Depot.Area.Origin, null, null),
+            plant.Area.Cells().ToHashSet(), new RouteOptions { RunThrough = true });
 
         Assert.NotNull(path);
-        // Съезд из депо ведёт на восток, поэтому к шахте на западе поезд приходит через разворот в тупике у завода
-        // и проезжает станцию шахты до дальнего (западного) конца.
-        Assert.Equal(P(2, 6), path[^1]);
-        Assert.Contains(P(53, 6), path);
+        // Съезд из депо ведёт на запад, поэтому к заводу на востоке поезд приходит через разворот в тупике у шахты
+        // и проезжает станцию завода до дальнего (восточного) конца.
+        Assert.Equal(P(53, 6), path[^1].Cell);
+        Assert.Contains(path, p => p.IsReversal && p.Cell.X <= 5);
     }
 
     [Fact]
@@ -39,12 +39,12 @@ public class TransportTests
     }
 
     [Fact]
-    public void Train_longer_than_platform_is_handled_in_parts_with_shunting()
+    public void Train_longer_than_platform_is_handled_slower()
     {
-        // docs/12: клетка платформы обслуживает два вагона; длинный состав грузится частями с перестановкой.
+        // docs/10, docs/12: состав длиннее платформы обслуживается, но медленнее; перестановки нет.
         var line = new TestLine();
         line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
-        var train = line.Train(gondolas: 10); // платформа 4 клетки = 8 вагонов, значит две части
+        var train = line.Train(gondolas: 10); // платформа 4 клетки = 8 вагонов: у платформы 80 % состава
         var mine = line.Stop("coal_mine", "rail");
         Assert.Empty(line.Transport.CheckRoute(train.Id, mine, line.Stop("steel_plant", "rail")));
         line.Transport.AssignRoute(train.Id, mine, line.Stop("steel_plant", "rail"));
@@ -61,10 +61,19 @@ public class TransportTests
             }
         }
         Assert.Equal(T(600), train.Cargo);
-        Assert.Contains(reasons, r => r.Contains("часть 1 из 2"));
-        Assert.Contains(reasons, r => r.Contains("перестановка"));
-        // 600 т при 100 т/ч — шесть часов работы плюс два часа перестановки.
+        Assert.Contains(reasons, r => r.Contains("медленнее: у платформы 80"));
+        // 600 т при 80 т/ч вместо 100 т/ч — восемь часов вместо шести.
         Assert.True(loadingHours >= 8, $"погрузка заняла {loadingHours} ч");
+    }
+
+    [Fact]
+    public void Rail_station_has_one_place_per_track()
+    {
+        var line = new TestLine();
+        var mine = line.Transport.Stops.Find(line.Stop("coal_mine", "rail"))!;
+        var plant = line.Transport.Stops.Find(line.Stop("steel_plant", "rail"))!;
+        Assert.Equal((2, 4), (mine.Slots, mine.Length));
+        Assert.Equal((1, 4), (plant.Slots, plant.Length));
     }
 
     [Fact]
@@ -123,10 +132,11 @@ public class TransportTests
     public void Station_serves_vehicles_in_arrival_order_and_others_wait_in_queue()
     {
         // docs/10, docs/12: больше техники, чем пункт успевает обработать, — очередь в порядке прибытия.
+        // Второй поезд идёт за первым по блочным сигналам и встаёт на второй путь станции шахты.
         var line = new TestLine();
         line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
-        var early = line.Train(gondolas: 5); // 300 т — грузится три часа при 100 т/ч
-        var late = line.Train(gondolas: 5);
+        var early = line.Train(gondolas: 7); // 420 т — грузится пять часов при 100 т/ч
+        var late = line.Train(gondolas: 7);
         var mine = line.Stop("coal_mine", "rail");
         var plant = line.Stop("steel_plant", "rail");
         // Второй купленный поезд выезжает на час раньше — значит, и обслуживаться должен первым.
@@ -141,10 +151,12 @@ public class TransportTests
         Assert.Contains("в очереди на погрузку (впереди: 1)", early.Reason);
         Assert.Equal([late.Id, early.Id], line.Transport.AtStop(mine).Select(v => v.Id));
 
+        // Поезда стоят на разных путях станции: у пункта два места (docs/10).
+        Assert.NotEqual(late.Position.Y, early.Position.Y);
         RunUntil(line, () => late.State != VehicleState.Loading);
-        Assert.Equal(T(300), late.Cargo);
+        Assert.Equal(T(420), late.Cargo);
         RunUntil(line, () => early.State != VehicleState.Loading);
-        Assert.Equal(T(300), early.Cargo);
+        Assert.Equal(T(420), early.Cargo);
         line.AssertConserved();
     }
 

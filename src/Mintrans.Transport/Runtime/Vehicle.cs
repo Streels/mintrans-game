@@ -2,6 +2,7 @@ using Mintrans.Core.Grid;
 using Mintrans.Core.Ids;
 using Mintrans.Economy;
 using Mintrans.Transport.Definitions;
+using Mintrans.Transport.Routing;
 using Mintrans.Transport.Stops;
 using Mintrans.World.Facilities;
 
@@ -32,6 +33,22 @@ public enum VehicleState
 
     /// <summary>Не может ехать: нет пути, пункт снесён и т. п. Каждый час пробует снова.</summary>
     Stuck,
+
+    /// <summary>Разбит в крушении (docs/10а): обломки занимают путь, затем техника исчезает.</summary>
+    Crashed,
+
+    /// <summary>Остановлен игроком там, где был: стоит на месте, пока его не возобновят. Поезд продолжает занимать путь.</summary>
+    Stopped,
+}
+
+/// <summary>Что делает поезд у красного сигнала (docs/10а, docs/12).</summary>
+public enum RedSignalBehavior
+{
+    /// <summary>Ждать, пока сигнал откроется.</summary>
+    Wait,
+
+    /// <summary>Подождав, развернуться и искать другой путь.</summary>
+    Reverse,
 }
 
 /// <summary>Куда техника направляется в цикле А–Б–А (docs/12).</summary>
@@ -60,13 +77,13 @@ public sealed class VehicleUnit(VehicleModel model, TruckBody? body = null)
 }
 
 /// <summary>
-/// Поезд или грузовик. Положение — клетка на сети; поезд дополнительно занимает «хвост» из клеток,
-/// по которым только что проехал, — по длине состава (docs/02: поезд не точка).
+/// Поезд или грузовик. Положение — точка на сети (клетка и направление движения); поезд дополнительно занимает
+/// «хвост» из клеток, по которым только что проехал, — по длине состава (docs/02, docs/10а: поезд не точка).
 /// </summary>
 public sealed class Vehicle
 {
     private readonly List<VehicleUnit> _units = new();
-    private readonly LinkedList<GridPos> _trail = new();
+    private readonly List<RoutePoint> _trail = new();
 
     internal Vehicle(VehicleId id, string name, NetworkTransport network, Facility depot)
     {
@@ -74,7 +91,7 @@ public sealed class Vehicle
         Name = name;
         Network = network;
         Depot = depot.Id;
-        Position = depot.Area.Origin;
+        Head = new RoutePoint(depot.Area.Origin, null, null);
     }
 
     public VehicleId Id { get; }
@@ -90,21 +107,61 @@ public sealed class Vehicle
     public VehicleState State { get; internal set; } = VehicleState.InDepot;
     public Leg Leg { get; internal set; } = Leg.ToA;
 
+    /// <summary>Голова состава: клетка, откуда въехала и куда собирается выехать.</summary>
+    public RoutePoint Head { get; private set; }
+
     /// <summary>Клетка головы состава.</summary>
-    public GridPos Position { get; internal set; }
+    public GridPos Position => Head.Cell;
+
+    /// <summary>Точки, которые занимает состав за головой, от ближней к дальней.</summary>
+    public IReadOnlyList<RoutePoint> TrailPoints => _trail;
 
     /// <summary>Клетки, которые занимает состав за головой, от ближней к дальней.</summary>
-    public IEnumerable<GridPos> Trail => _trail;
+    public IEnumerable<GridPos> Trail => _trail.Select(p => p.Cell);
 
-    /// <summary>Оставшийся путь до цели этапа, начиная с текущей клетки.</summary>
-    public IReadOnlyList<GridPos> Path { get; internal set; } = [];
-    internal int PathIndex { get; set; }
+    /// <summary>Маршрут до цели этапа; голова стоит в точке <see cref="PathIndex"/>.</summary>
+    public IReadOnlyList<RoutePoint> Path { get; private set; } = [];
+    internal int PathIndex { get; private set; }
     internal int PathRevision { get; set; } = -1;
     /// <summary>Накопленная доля следующего шага (0…1) — для плавного показа движения.</summary>
     public double MoveBudget { get; internal set; }
 
-    /// <summary>Следующая клетка пути или null — для плавного показа между часами.</summary>
-    public GridPos? NextCell => PathIndex + 1 < Path.Count ? Path[PathIndex + 1] : null;
+    /// <summary>Следующая точка маршрута или null — для плавного показа между часами.</summary>
+    public RoutePoint? NextPoint => PathIndex + 1 < Path.Count ? Path[PathIndex + 1] : null;
+
+    /// <summary>Следующая клетка пути или null.</summary>
+    public GridPos? NextCell => NextPoint?.Cell;
+
+    /// <summary>До <paramref name="count"/> следующих точек маршрута после головы — для плавного показа движения между часами.</summary>
+    public IReadOnlyList<RoutePoint> PointsAhead(int count) =>
+        Path.Skip(PathIndex + 1).Take(Math.Max(0, count)).ToList();
+
+    /// <summary>Поведение у красного сигнала (настройка поезда, docs/10а).</summary>
+    public RedSignalBehavior RedSignal { get; set; } = RedSignalBehavior.Wait;
+
+    /// <summary>Сколько часов подряд стоит у красного сигнала или занятого переезда.</summary>
+    public int BlockedHours { get; internal set; }
+
+    /// <summary>Поезд только что встал (депо, станция) — может уехать в любую сторону, развернув состав.</summary>
+    internal bool CanTurn { get; set; } = true;
+
+    /// <summary>
+    /// Куда ехать после обслуживания в депо: продолжить маршрут к А или к Б, или остаться в депо (null) —
+    /// по команде игрока «в депо».
+    /// </summary>
+    public Leg? AfterDepot { get; internal set; } = Leg.ToA;
+
+    /// <summary>Что техника делала, когда игрок её остановил, — к этому она вернётся по команде «возобновить».</summary>
+    internal VehicleState StoppedFrom { get; set; }
+
+    /// <summary>
+    /// Сколько часов осталось до цели текущего этапа при нынешней скорости, без учёта ожидания у сигналов и переездов
+    /// (docs/12). Null, если техника не в пути.
+    /// </summary>
+    public double? HoursToArrival =>
+        State == VehicleState.Travelling && Path.Count > 0 && Speed > 0
+            ? Math.Max(0, Path.Count - 1 - PathIndex - MoveBudget) / Speed
+            : null;
 
     /// <summary>Износ от 0 до 1 и выше (docs/11).</summary>
     public double Wear { get; internal set; }
@@ -118,27 +175,19 @@ public sealed class Vehicle
     /// <summary>В этот час ждала своей очереди: пункт уже обработал столько, сколько успевает.</summary>
     public bool Queued { get; internal set; }
 
-    /// <summary>Какая часть состава сейчас стоит у платформы (с нуля), если состав длиннее платформы.</summary>
-    public int PartIndex { get; internal set; }
-
-    /// <summary>Сколько часов ещё длится перестановка к следующей части.</summary>
-    public int ShuntHoursLeft { get; internal set; }
-
     /// <summary>Единицы, которые везут груз: вагоны поезда или сам грузовик.</summary>
     public IReadOnlyList<VehicleUnit> CargoUnits => _units.Where(u => u.Model.Capacity > Mass.Zero).ToList();
 
-    /// <summary>На сколько частей делится состав у платформы длиной <paramref name="stopLength"/> клеток.</summary>
-    public int Parts(int stopLength) => Network.Trains
-        ? Math.Max(1, (int)Math.Ceiling(CargoUnits.Count / (double)Math.Max(1, stopLength * Network.WagonsPerStopCell)))
-        : 1;
-
-    /// <summary>Вагоны текущей части у платформы.</summary>
-    public IReadOnlyList<VehicleUnit> PartUnits(int stopLength)
+    /// <summary>
+    /// Какая доля состава помещается у платформы длиной <paramref name="stopLength"/> клеток (docs/10, docs/12):
+    /// состав длиннее платформы обслуживается медленнее во столько же раз. У грузовика — всегда 1.
+    /// </summary>
+    public double PlatformFit(int stopLength)
     {
-        if (!Network.Trains)
-            return CargoUnits;
-        var perPart = Math.Max(1, stopLength * Network.WagonsPerStopCell);
-        return CargoUnits.Skip(PartIndex * perPart).Take(perPart).ToList();
+        var wagons = CargoUnits.Count;
+        if (!Network.Trains || wagons == 0)
+            return 1;
+        return Math.Min(1.0, stopLength * Network.WagonsPerStopCell / (double)wagons);
     }
 
     /// <summary>Пояснение для игрока: почему стоит, чего ждёт.</summary>
@@ -163,17 +212,56 @@ public sealed class Vehicle
 
     internal void RemoveLastUnit() => _units.RemoveAt(_units.Count - 1);
 
-    /// <summary>Сдвинуть голову на следующую клетку пути; хвост тянется следом.</summary>
-    internal void StepForward()
+    /// <summary>Задать маршрут, начинающийся в точке головы.</summary>
+    internal void SetPath(IReadOnlyList<RoutePoint> path, int revision)
     {
-        _trail.AddFirst(Position);
-        while (_trail.Count > LengthCells - 1)
-            _trail.RemoveLast();
-        PathIndex++;
-        Position = Path[PathIndex];
+        Path = path;
+        PathIndex = 0;
+        PathRevision = revision;
+        if (path.Count > 0)
+            Head = path[0];
     }
 
-    internal void ClearTrail() => _trail.Clear();
+    internal void ClearPath()
+    {
+        Path = [];
+        PathIndex = 0;
+    }
+
+    /// <summary>Сдвинуть голову на следующую точку маршрута; хвост тянется следом.</summary>
+    internal void StepForward()
+    {
+        _trail.Insert(0, Path[PathIndex]);
+        while (_trail.Count > LengthCells - 1)
+            _trail.RemoveAt(_trail.Count - 1);
+        PathIndex++;
+        Head = Path[PathIndex];
+        CanTurn = false;
+    }
+
+    /// <summary>
+    /// Развернуть состав (docs/10а): головой становится последний вагон, все точки — в обратную сторону.
+    /// Маршрут сбрасывается: его нужно искать заново от новой головы.
+    /// </summary>
+    internal void Flip()
+    {
+        var all = new List<RoutePoint>(_trail.Count + 1) { Head };
+        all.AddRange(_trail);
+        all.Reverse();
+        Head = all[0].Reversed();
+        _trail.Clear();
+        _trail.AddRange(all.Skip(1).Select(p => p.Reversed()));
+        ClearPath();
+    }
+
+    /// <summary>Поставить технику в клетку без хвоста (в депо или гараж).</summary>
+    internal void PlaceAt(GridPos cell)
+    {
+        _trail.Clear();
+        Head = new RoutePoint(cell, null, null);
+        ClearPath();
+        CanTurn = true;
+    }
 
     internal void SetState(VehicleState state, string reason = "")
     {

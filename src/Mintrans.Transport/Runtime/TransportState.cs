@@ -1,6 +1,8 @@
+using Mintrans.Core.Grid;
 using Mintrans.Core.Ids;
 using Mintrans.Economy;
 using Mintrans.Transport.Definitions;
+using Mintrans.Transport.Rail;
 using Mintrans.Transport.Stops;
 using Mintrans.World;
 using Mintrans.World.Facilities;
@@ -46,6 +48,33 @@ public sealed class TransportState
 
     public TransportCatalog Catalog { get; }
     public StopIndex Stops { get; }
+
+    private readonly Dictionary<TypeId, RailTraffic> _rail = new();
+
+    /// <summary>Сигнализация и занятость путей рельсовой сети (docs/10а).</summary>
+    public RailTraffic Rail(TypeId network)
+    {
+        if (!_rail.TryGetValue(network, out var traffic))
+            _rail[network] = traffic = new RailTraffic(_map, this, Catalog.Network(network));
+        return traffic;
+    }
+
+    /// <summary>Слой сети, по которой ездит техника данного вида.</summary>
+    public World.Networks.NetworkLayer NetworkLayer(TypeId network) => _map.Networks[network];
+
+    /// <summary>Рельсовые сети, по которым ездят поезда.</summary>
+    public IEnumerable<RailTraffic> RailNetworks => Catalog.Networks.Where(n => n.Trains).Select(n => Rail(n.Network));
+
+    /// <summary>Закрыт ли переезд в клетке хоть одной рельсовой сетью.</summary>
+    public bool IsCrossingClosed(GridPos cell) => RailNetworks.Any(r => r.IsCrossingClosed(cell));
+
+    /// <summary>Убрать технику из игры (обломки после крушения).</summary>
+    internal void Remove(Vehicle vehicle)
+    {
+        if (vehicle.Network.Trains)
+            Rail(vehicle.Network.Network).Forget(vehicle);
+        _vehicles.Remove(vehicle.Id.Value);
+    }
 
     /// <summary>Вся техника в постоянном порядке — расчёт воспроизводим.</summary>
     public IEnumerable<Vehicle> Vehicles => _vehicles.Values;
@@ -156,13 +185,143 @@ public sealed class TransportState
         if (problems.Count > 0)
             throw new FleetException(string.Join(" ", problems));
         var vehicle = this[id];
+        if (vehicle.State == VehicleState.Crashed)
+            throw new FleetException($"{vehicle.Name} разбит.");
         vehicle.A = a;
         vehicle.B = b;
-        if (vehicle.State is VehicleState.InDepot or VehicleState.Stuck or VehicleState.Travelling)
+        if (vehicle.State is VehicleState.InDepot or VehicleState.Stuck or VehicleState.Travelling or VehicleState.Stopped)
         {
             vehicle.Leg = Leg.ToA;
-            vehicle.Path = [];
+            vehicle.AfterDepot = Leg.ToA;
+            ReleaseAhead(vehicle);
+            vehicle.ClearPath();
             vehicle.SetState(VehicleState.Travelling);
         }
     }
+
+    // ---------- Управление техникой на маршруте (docs/01, docs/11, docs/12) ----------
+
+    /// <summary>
+    /// Остановить технику там, где она есть: в пути, у пункта, в очереди. Груз остаётся в ней, поезд продолжает
+    /// занимать путь, но закреплённый впереди путь освобождается. Возобновить — <see cref="Resume"/>.
+    /// </summary>
+    public void Stop(VehicleId id)
+    {
+        var vehicle = this[id];
+        if (vehicle.State is not (VehicleState.Travelling or VehicleState.Stuck or VehicleState.Loading or VehicleState.Unloading))
+            throw new FleetException(vehicle.State switch
+            {
+                VehicleState.Stopped => $"{vehicle.Name} уже остановлен.",
+                VehicleState.InDepot => $"{vehicle.Name} стоит в депо.",
+                VehicleState.Servicing => $"{vehicle.Name} на обслуживании — дождитесь его конца.",
+                _ => $"{vehicle.Name} разбит.",
+            });
+        vehicle.StoppedFrom = vehicle.State;
+        ReleaseAhead(vehicle);
+        vehicle.MoveBudget = 0;
+        vehicle.BlockedHours = 0;
+        vehicle.SetState(VehicleState.Stopped, "остановлен");
+    }
+
+    /// <summary>
+    /// Возобновить работу: остановленная техника продолжает то, что делала (у пункта встаёт в конец очереди);
+    /// стоящая в депо техника с маршрутом выезжает на него — к Б, если в ней груз, иначе к А.
+    /// </summary>
+    public void Resume(VehicleId id)
+    {
+        var vehicle = this[id];
+        switch (vehicle.State)
+        {
+            case VehicleState.Stopped when vehicle.StoppedFrom is VehicleState.Loading or VehicleState.Unloading:
+                vehicle.QueueTicket = NextTicket();
+                vehicle.SetState(vehicle.StoppedFrom, vehicle.StoppedFrom == VehicleState.Loading ? "грузится" : "разгружается");
+                return;
+            case VehicleState.Stopped:
+                vehicle.ClearPath();
+                vehicle.SetState(VehicleState.Travelling, "отправляется");
+                return;
+            case VehicleState.InDepot when vehicle.A is not null && vehicle.B is not null:
+                vehicle.Leg = vehicle.Cargo > Mass.Zero ? Leg.ToB : Leg.ToA;
+                vehicle.AfterDepot = Leg.ToA;
+                vehicle.ClearPath();
+                vehicle.SetState(VehicleState.Travelling, "отправляется");
+                return;
+            case VehicleState.InDepot:
+                throw new FleetException("Сначала выберите пункты А и Б.");
+            default:
+                throw new FleetException($"{vehicle.Name} и так работает.");
+        }
+    }
+
+    /// <summary>
+    /// Отправить технику в депо (гараж) приписки. С <paramref name="service"/> — на техобслуживание с возвратом
+    /// на маршрут; без него — обслужиться и остаться в депо, сохранив маршрут (возобновить — <see cref="Resume"/>).
+    /// </summary>
+    public void SendToDepot(VehicleId id, bool service)
+    {
+        var vehicle = this[id];
+        if (vehicle.State == VehicleState.Crashed)
+            throw new FleetException($"{vehicle.Name} разбит.");
+        if (vehicle.State == VehicleState.Servicing)
+            throw new FleetException($"{vehicle.Name} уже на обслуживании.");
+        if (vehicle.State == VehicleState.InDepot)
+        {
+            if (!service)
+                throw new FleetException($"{vehicle.Name} уже в депо.");
+            vehicle.AfterDepot = null;
+            vehicle.SetState(VehicleState.Servicing, "на обслуживании");
+            return;
+        }
+        if (!_map.Facilities.TryGet(vehicle.Depot, out _))
+            throw new FleetException("Депо приписки снесено.");
+        vehicle.Leg = Leg.ToDepot;
+        vehicle.AfterDepot = service && vehicle.A is not null ? vehicle.Cargo > Mass.Zero ? Leg.ToB : Leg.ToA : null;
+        ReleaseAhead(vehicle);
+        vehicle.ClearPath();
+        vehicle.SetState(VehicleState.Travelling, service ? "едет на обслуживание" : "едет в депо");
+    }
+
+    /// <summary>
+    /// Продать технику: только стоящую в депо и без груза. Денег пока нет (тема 09) — техника просто уходит из парка.
+    /// </summary>
+    public void Sell(VehicleId id)
+    {
+        var vehicle = this[id];
+        if (vehicle.State != VehicleState.InDepot)
+            throw new FleetException("Продать можно только технику, стоящую в депо.");
+        if (vehicle.Cargo > Mass.Zero)
+            throw new FleetException("В технике груз — сначала довезите его до получателя.");
+        Remove(vehicle);
+    }
+
+    private void ReleaseAhead(Vehicle vehicle)
+    {
+        if (vehicle.Network.Trains)
+            Rail(vehicle.Network.Network).ReleaseAhead(vehicle);
+    }
+
+    // ---------- Доставки по направлениям (docs/12) ----------
+
+    private readonly Dictionary<(StopRef A, StopRef B), SortedDictionary<long, Mass>> _deliveries = new();
+
+    /// <summary>Сколько суток истории доставок хранится по каждому направлению.</summary>
+    public const int DeliveryHistoryDays = 30;
+
+    /// <summary>Учесть груз, выгруженный в Б техникой направления А–Б в сутки <paramref name="day"/>.</summary>
+    internal void RecordDelivery(StopRef a, StopRef b, long day, Mass mass)
+    {
+        if (mass <= Mass.Zero)
+            return;
+        if (!_deliveries.TryGetValue((a, b), out var days))
+            _deliveries[(a, b)] = days = new SortedDictionary<long, Mass>();
+        days[day] = days.GetValueOrDefault(day) + mass;
+        foreach (var old in days.Keys.Where(d => d <= day - DeliveryHistoryDays).ToList())
+            days.Remove(old);
+    }
+
+    /// <summary>Сколько груза доставлено по направлению А–Б с суток <paramref name="fromDay"/> включительно.</summary>
+    public Mass DeliveredSince(StopRef a, StopRef b, long fromDay) =>
+        _deliveries.TryGetValue((a, b), out var days)
+            ? days.Where(p => p.Key >= fromDay).Aggregate(Mass.Zero, (sum, p) => sum + p.Value)
+            : Mass.Zero;
 }

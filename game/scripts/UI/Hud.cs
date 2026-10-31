@@ -24,7 +24,7 @@ public partial class Hud : CanvasLayer
 
     public void SetTitle(string mapName) =>
         _title.Text = $"{mapName}\nWASD / стрелки, правая кнопка — сдвиг · колесо — масштаб · F — вся карта\n"
-                      + "Пробел — пауза · 1–4 — скорость · . — один час";
+                      + "Пробел — пауза · 1–4 — скорость · . — один час · V — поезда: спрайты / схема";
 
     private Label? _news;
     private double _newsLeft;

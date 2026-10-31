@@ -16,15 +16,18 @@ public partial class UiScenario : Node
     private WorldMap _map = null!;
     private IsoProjection _projection = null!;
     private Action<long> _skipHours = null!;
+    private Func<GridPos?> _firstTrain = null!;
     private int _wait;
 
     public string? ScreenshotPath { get; set; }
 
-    public void Init(WorldMap map, IsoProjection projection, string scenario, Action<long> skipHours)
+    /// <param name="firstTrain">Клетка головы первого поезда на линии — для крупного плана в конце сценария «chain».</param>
+    public void Init(WorldMap map, IsoProjection projection, string scenario, Action<long> skipHours, Func<GridPos?> firstTrain)
     {
         _map = map;
         _projection = projection;
         _skipHours = skipHours;
+        _firstTrain = firstTrain;
         Wait(10);
         switch (scenario)
         {
@@ -82,8 +85,10 @@ public partial class UiScenario : Node
         Drag(P(50, 186), P(52, 186));
         ClickButton("Ж/д депо");
         Drag(P(180, 152), P(180, 151));
+        // Съезд из депо в обе стороны: к угольной ветке на восток и к рудной на запад.
         ClickButton("Ж/д путь");
-        Drag(P(180, 151), P(181, 149));
+        Drag(P(178, 149), P(180, 151));
+        Drag(P(182, 149), P(180, 151));
         ClickButton("Автогараж");
         Drag(P(147, 161), P(147, 160));
 
@@ -118,12 +123,13 @@ public partial class UiScenario : Node
         // Двадцать суток, затем панель депо — посмотреть на состояние поездов.
         _actions.Enqueue(() => _skipHours(24 * 20));
         ClickCell(P(180, 152));
-        // Крупный план у завода, чтобы была видна техника.
+        // Крупный план первого поезда на линии (или завода, если поезда нет), чтобы были видны вагоны.
         _actions.Enqueue(() =>
         {
             var camera = GetViewport().GetCamera2D();
-            camera.Zoom = new Vector2(0.9f, 0.9f);
-            camera.Position = _projection.CellCenter(P(160, 152), 0) + new Vector2(150, 0);
+            var target = _firstTrain() ?? P(160, 152);
+            camera.Zoom = new Vector2(16f, 16f);
+            camera.Position = _projection.CellCenter(target, _map.Terrain.Height[target]) + new Vector2(30, 0);
         });
         Wait(5);
     }

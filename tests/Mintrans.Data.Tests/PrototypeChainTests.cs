@@ -48,10 +48,13 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         Built(builder.BuildPath("road", P(80, 160), P(54, 186)));
         Built(builder.BuildPath("road", P(54, 186), P(53, 186)));
         Built(builder.BuildFacility("city_truck_stop", P(50, 186), P(52, 186)));
-        // 3. Депо со съездом на линию и автогараж у дороги.
+        // 3. Депо со съездом на линию в обе стороны (треугольником) и автогараж у дороги.
+        // Съезд только в одну сторону заставил бы рудный поезд разворачиваться на угольной ветке,
+        // и на однопутной линии поезда заперли бы друг друга (docs/10а).
         var depot = builder.BuildFacility("rail_depot", P(180, 152), P(180, 151));
         Built(depot);
-        Built(builder.BuildPath("rail", P(180, 151), P(181, 149)));
+        Built(builder.BuildPath("rail", P(178, 149), P(180, 151)));
+        Built(builder.BuildPath("rail", P(182, 149), P(180, 151)));
         var garage = builder.BuildFacility("truck_garage", P(147, 161), P(147, 160));
         Built(garage);
 
