@@ -1,7 +1,11 @@
+using Mintrans.Core.Geometry;
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
+using Mintrans.Construction.Rail;
 using Mintrans.World;
 using Mintrans.World.Facilities;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Construction;
 
@@ -61,25 +65,6 @@ public sealed class FacilityCellRule(ConstructionCatalog catalog) : INetworkCell
     }
 }
 
-/// <summary>
-/// Рельсы (docs/10б): в клетке — только стандартная конфигурация кусков. Крест двух прямых допустим,
-/// но без поворотов в той же клетке. Где стоит сигнал, стрелку или крест не построить: на них сигнал не ставится.
-/// </summary>
-public sealed class TrackLayoutRule : INetworkCellRule
-{
-    public BuildProblem? Check(WorldMap map, NetworkBuildDefinition network, PathStep step)
-    {
-        if (map.Networks[network.Network] is not TrackNetworkLayer tracks)
-            return null;
-        var after = tracks.PiecesAt(step.Cell) | TrackNetworkLayer.PieceOf(step);
-        if (!after.IsValid())
-            return new BuildProblem("cross_with_turn", "На кресте путей нельзя повернуть — перенесите стрелку на соседнюю клетку.", step.Cell);
-        if (!after.IsSimple() && tracks.SignalsAt(step.Cell).Any())
-            return new BuildProblem("signal_on_junction", "На клетке сигнал — стрелку или крест здесь не построить.", step.Cell);
-        return null;
-    }
-}
-
 /// <summary>В клетку с опорой моста путь не прокладывается: к мосту подводят путь с тыльной стороны опоры.</summary>
 public sealed class BridgeHeadRule : INetworkCellRule
 {
@@ -126,42 +111,59 @@ public sealed class DelegateDemolishGuard(Func<Facility, string?> check) : IDemo
     public string? CanRemove(Facility facility) => check(facility);
 }
 
-/// <summary>Форма сети в клетке — для правил переездов.</summary>
+/// <summary>Форма клеточной сети в клетке — для правил переездов.</summary>
 public static class NetworkShapes
 {
     /// <summary>
     /// Идёт ли сеть в клетке одной прямой (с учётом шага <paramref name="adding"/>, если он будет уложен):
-    /// true — с севера на юг, false — с востока на запад, null — не прямая (поворот, стрелка, тупик, перекрёсток).
+    /// true — с севера на юг, false — с востока на запад, null — не прямая (поворот, перекрёсток, тупик).
     /// </summary>
     public static bool? StraightAxis(NetworkLayer layer, GridPos cell, PathStep? adding)
     {
-        if (layer is TrackNetworkLayer tracks)
-        {
-            var pieces = tracks.PiecesAt(cell) | (adding is { } step ? TrackNetworkLayer.PieceOf(step) : TrackPieces.None);
-            return pieces switch
-            {
-                TrackPieces.NorthSouth => true,
-                TrackPieces.EastWest => false,
-                _ => null,
-            };
-        }
         var edges = layer is EdgeNetworkLayer roads && adding is { } a ? roads.EdgesAfter(a) : layer.EdgesAt(cell);
-        return edges switch
+        return RailCrossings.RoadAxis(edges);
+    }
+}
+
+/// <summary>
+/// Дорога через рельсы (docs/10а): только переездом — прямая дорога поперёк прямого пути на земле, угол не меньше
+/// <see cref="RailCrossingRule.MinAngleDeg"/>°. Под мостом рельсов дорога проходит свободно.
+/// </summary>
+public sealed class RailInCellRule(ConstructionCatalog catalog) : INetworkCellRule
+{
+    public BuildProblem? Check(WorldMap map, NetworkBuildDefinition network, PathStep step)
+    {
+        if (map.Rails is not { } rails || !map.Contains(step.Cell))
+            return null;
+        var edges = RailCellQuery.EdgesIn(map, step.Cell).ToList();
+        if (edges.Count == 0)
+            return null;
+        if (!catalog.AllowsLevelCrossing(network.Network, rails.Settings.Kind))
+            return new BuildProblem("other_network", "На клетке уже проходит железная дорога.", step.Cell);
+        var road = NetworkShapes.StraightAxis(map.Networks[network.Network], step.Cell, step);
+        if (road is null)
+            return new BuildProblem("crossing_shape", "Переезд строится только поперёк прямого пути и прямой дороги.", step.Cell);
+        foreach (var edge in edges)
         {
-            DirectionMask.North | DirectionMask.South => true,
-            DirectionMask.East | DirectionMask.West => false,
-            _ => null,
-        };
+            if (!RailCrossings.StraightIn(edge.Geometry, step.Cell, rails.Settings.HalfWidthM, out var heading))
+                return new BuildProblem("crossing_shape", "Переезд строится только на прямом участке пути.", step.Cell);
+            var angle = Math.Abs(Angles.NormalizePi(heading - (road.Value ? Math.PI / 2 : 0)));
+            angle = Math.Min(angle, Math.PI - angle);
+            if (angle + 1e-9 < Angles.ToRadians(RailCrossingRule.MinAngleDeg))
+                return new BuildProblem("crossing_shape", "Дорога пересекает путь слишком полого.", step.Cell);
+            if (rails.SignalsOn(edge.Id).Any(sig => rails.CellOf(sig) == step.Cell) ||
+                rails.BerthsOn(edge.Id).Any(berth => map.Crossings.At(step.Cell).Count == 0 &&
+                    Covers(edge, berth, step.Cell, rails.Settings.HalfWidthM)))
+                return new BuildProblem("crossing_fixture", "Здесь сигнал, платформа или депо — переезд не строится.", step.Cell);
+        }
+        return null;
     }
 
-    /// <summary>Переезд: в клетке две сети, обе прямые и поперёк друг друга.</summary>
-    public static bool IsLevelCrossing(WorldMap map, GridPos cell)
+    private static bool Covers(TrackEdge edge, RailBerth berth, GridPos cell, double halfWidth)
     {
-        var layers = map.Networks.Layers.Where(l => l.HasAny(cell)).ToList();
-        return layers.Count == 2
-            && StraightAxis(layers[0], cell, null) is { } a
-            && StraightAxis(layers[1], cell, null) is { } b
-            && a != b;
+        var square = SpatialScale.CellBounds(cell);
+        return edge.Geometry.Flat.Any(seg => seg.ToS > berth.FromM && seg.FromS < berth.ToM &&
+                                            Distances.SegmentRect(seg.A, seg.B, square) < halfWidth);
     }
 }
 

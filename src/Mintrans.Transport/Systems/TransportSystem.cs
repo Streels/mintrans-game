@@ -21,7 +21,7 @@ namespace Mintrans.Transport.Systems;
 /// заезд на обслуживание. Обходит только технику, а не всю карту.
 /// Груз всегда ровно в одном месте: склад отправителя → техника → склад получателя (или списан при крушении).
 /// </summary>
-public sealed class TransportSystem : ISimulationSystem
+public sealed partial class TransportSystem : ISimulationSystem
 {
     public string Name => "transport";
     public Schedule Schedule => Schedule.Hourly;
@@ -179,214 +179,10 @@ public sealed class TransportSystem : ISimulationSystem
             Arrive(vehicle, context);
     }
 
-    // ---------- Движение поездов ----------
-
-    /// <summary>
-    /// Поезд едет по маршруту клетка за клеткой (docs/10а). На границе блока — у сигнала, станции, депо —
-    /// он заново выбирает путь (узел маршрута, docs/12) и проверяет сигнал: блочный — свободен ли следующий блок,
-    /// маршрутный — удалось ли закрепить путь до следующего безопасного места. Без сигналов поезд едет вслепую:
-    /// въехав на занятый участок, он сталкивается с другим составом.
-    /// </summary>
-    private static void TravelTrain(Vehicle vehicle, Context context)
-    {
-        var rail = context.Transport.Rail(vehicle.Network.Network);
-        var (targets, targetName) = Targets(vehicle, context);
-        if (targets is null)
-        {
-            rail.ReleaseAhead(vehicle);
-            vehicle.SetState(VehicleState.Stuck, targetName);
-            return;
-        }
-
-        var revision = Revision(rail.Layer, context);
-        if (vehicle.Path.Count == 0 || vehicle.PathRevision != revision || !targets.Contains(vehicle.Path[^1].Cell))
-        {
-            // Сеть изменилась посреди пути: закреплённый путь переносится на новый маршрут, если он свободен.
-            var occupied = rail.SegmentsOf(vehicle).ToHashSet();
-            var heldAhead = rail.Reservations.Of(vehicle.Id).Any(s => !occupied.Contains(s));
-            if (!Replan(vehicle, rail, targets, context))
-            {
-                vehicle.SetState(VehicleState.Stuck, $"нет пути до «{targetName}»");
-                return;
-            }
-            if (heldAhead && vehicle.Path.Count > 1)
-                rail.TryReserve(vehicle, vehicle.Path, 1);
-        }
-        if (vehicle.State == VehicleState.Stuck)
-            vehicle.SetState(VehicleState.Travelling);
-        vehicle.Reason = $"едет: {targetName}";
-
-        vehicle.MoveBudget += vehicle.Speed;
-        var atNode = false;
-        while (vehicle.MoveBudget >= 1 && vehicle.PathIndex < vehicle.Path.Count - 1)
-        {
-            var here = vehicle.Path[vehicle.PathIndex];
-            if (here.IsReversal)
-            {
-                // Разворот в тупике: головой становится последний вагон, путь ищется заново от него.
-                var before = rail.SegmentsOf(vehicle).ToList();
-                vehicle.Flip();
-                rail.Moved(vehicle, before);
-                if (!Replan(vehicle, rail, targets, context))
-                {
-                    vehicle.SetState(VehicleState.Stuck, $"нет пути до «{targetName}»");
-                    return;
-                }
-                continue;
-            }
-
-            var next = vehicle.Path[vehicle.PathIndex + 1];
-            var link = new NetworkLink(next.Cell, next.Entry!.Value, next.Elevated);
-            var segment = rail.Segment(next);
-            if (!rail.Reservations.Owns(segment, vehicle.Id) && rail.Boundary(here, link) is { } boundary)
-            {
-                // Узел маршрута (docs/12): перед сигналом поезд заново выбирает путь по текущей занятости блоков.
-                if (!atNode)
-                {
-                    atNode = true;
-                    if (!Replan(vehicle, rail, targets, context))
-                    {
-                        vehicle.SetState(VehicleState.Stuck, $"нет пути до «{targetName}»");
-                        return;
-                    }
-                    continue;
-                }
-                var blocker = boundary.Logic == SignalLogic.Block
-                    ? rail.BlockBlocker(segment, vehicle.Id)
-                    : rail.TryReserve(vehicle, vehicle.Path, vehicle.PathIndex + 1);
-                if (blocker is { } other)
-                {
-                    WaitAtSignal(vehicle, boundary, other, rail, targets, context);
-                    return;
-                }
-            }
-
-            if (!next.Elevated && TruckOn(next.Cell, context) is { } truck)
-            {
-                vehicle.MoveBudget = 0;
-                vehicle.BlockedHours++;
-                vehicle.Reason = $"ждёт: на переезде «{truck.Name}»";
-                return;
-            }
-            if (rail.Occupancy.ConflictWith(segment, vehicle.Id) is { } hit)
-            {
-                Crash(vehicle, context.Transport[hit], next.Cell, rail, context);
-                return;
-            }
-
-            var occupied = rail.SegmentsOf(vehicle).ToList();
-            vehicle.StepForward();
-            rail.Moved(vehicle, occupied);
-            vehicle.Wear += context.Maintenance.WearPerCell;
-            vehicle.MoveBudget -= 1;
-            vehicle.BlockedHours = 0;
-            atNode = false;
-        }
-        if (vehicle.PathIndex >= vehicle.Path.Count - 1)
-            Arrive(vehicle, context);
-    }
-
-    /// <summary>
-    /// Найти маршрут поезда от головы. Только что вставший поезд (станция, депо) может уехать и назад —
-    /// тогда состав разворачивается, и головой становится последний вагон.
-    /// </summary>
-    private static bool Replan(Vehicle vehicle, RailTraffic rail, IReadOnlySet<GridPos> targets, Context context)
-    {
-        rail.ReleaseAhead(vehicle);
-        var options = new RouteOptions
-        {
-            Passable = cell => Passable(vehicle, context, cell),
-            StepDelay = (here, next) => rail.StepDelay(vehicle, here, next),
-            CellHours = 1 / Math.Max(0.01, vehicle.Speed),
-            ReverseHours = context.RailRules.ReverseDelayHours,
-            RunThrough = vehicle.Leg != Leg.ToDepot,
-        };
-        var forward = Pathfinder.Search(rail.Layer, vehicle.Head with { Exit = null }, targets, options);
-        Pathfinder.Route? backward = null;
-        if (vehicle.CanTurn && (vehicle.Head.Entry is not null || vehicle.TrailPoints.Count > 0))
-        {
-            var tail = (vehicle.TrailPoints.Count > 0 ? vehicle.TrailPoints[^1] : vehicle.Head).Reversed();
-            backward = Pathfinder.Search(rail.Layer, tail with { Exit = null }, targets, options);
-        }
-
-        var revision = Revision(rail.Layer, context);
-        if (backward is not null && (forward is null || backward.Hours + options.ReverseHours < forward.Hours))
-        {
-            var before = rail.SegmentsOf(vehicle).ToList();
-            vehicle.Flip();
-            rail.Moved(vehicle, before);
-            vehicle.SetPath(backward.Points, revision);
-            return true;
-        }
-        if (forward is null)
-            return false;
-        vehicle.SetPath(forward.Points, revision);
-        return true;
-    }
-
-    /// <summary>
-    /// Красный сигнал (docs/10а): поезд стоит. С настройкой «разворачиваться» он, подождав, разворачивается
-    /// (кроме одностороннего маршрутного сигнала). Долгая стоянка — предупреждение игроку; сама блокировка не устраняется.
-    /// </summary>
-    private static void WaitAtSignal(Vehicle vehicle, RailBoundary boundary, VehicleId blocker, RailTraffic rail,
-        IReadOnlySet<GridPos> targets, Context context)
-    {
-        vehicle.MoveBudget = 0;
-        vehicle.BlockedHours++;
-        var other = context.Transport.Vehicles.FirstOrDefault(v => v.Id == blocker)?.Name ?? "другой поезд";
-        vehicle.Reason = boundary.Signal switch
-        {
-            { Logic: SignalLogic.Block } => $"ждёт у блочного сигнала: впереди «{other}»",
-            { Logic: SignalLogic.Path } => $"ждёт у маршрутного сигнала: путь занят («{other}»)",
-            _ => $"ждёт у {boundary.Where}: путь занят («{other}»)",
-        };
-        if (vehicle.BlockedHours == context.RailRules.StuckWarningHours)
-            context.Post($"«{vehicle.Name}» стоит у {boundary.Where} уже {vehicle.BlockedHours} ч — возможна взаимная блокировка. " +
-                         "Проверьте сигналы и разъезды.");
-
-        if (vehicle.RedSignal == RedSignalBehavior.Reverse && vehicle.BlockedHours >= context.RailRules.ReverseAfterHours
-            && !boundary.OneWayPath)
-        {
-            var before = rail.SegmentsOf(vehicle).ToList();
-            vehicle.Flip();
-            rail.Moved(vehicle, before);
-            vehicle.BlockedHours = 0;
-            if (Replan(vehicle, rail, targets, context))
-                vehicle.Reason = "развернулся у красного сигнала";
-            else
-                vehicle.SetState(VehicleState.Stuck, "развернулся, но пути нет");
-        }
-    }
-
-    /// <summary>
-    /// Крушение (docs/10а, модель OpenTTD): оба состава разбиты, груз в них потерян, обломки занимают путь
-    /// <see cref="RailTrafficRules.WreckHours"/> часов. Игра не исправляет схему сигналов за игрока.
-    /// </summary>
-    private static void Crash(Vehicle mover, Vehicle other, GridPos cell, RailTraffic rail, Context context)
-    {
-        var wasWreck = other.State == VehicleState.Crashed;
-        foreach (var vehicle in new[] { mover, other }.Where(v => v.State != VehicleState.Crashed))
-        {
-            foreach (var unit in vehicle.Units.Where(u => u.CargoType is not null))
-            {
-                context.Economy.WriteOff(unit.CargoType!.Value, unit.Cargo);
-                unit.Cargo = Mass.Zero;
-                unit.CargoType = null;
-            }
-            rail.Reservations.RemoveAll(vehicle.Id);
-            vehicle.ClearPath();
-            vehicle.MoveBudget = 0;
-            vehicle.SetState(VehicleState.Crashed, "разбит в крушении");
-        }
-        context.Post(wasWreck
-            ? $"Крушение у клетки {cell.X}, {cell.Y}: «{mover.Name}» врезался в обломки «{other.Name}»."
-            : $"Крушение у клетки {cell.X}, {cell.Y}: столкнулись «{mover.Name}» и «{other.Name}». Груз потерян.");
-    }
-
     /// <summary>Машина на переезде в клетке — поезд её ждёт (docs/10а).</summary>
     private static Vehicle? TruckOn(GridPos cell, Context context)
     {
-        if (!context.Map.Networks.Layers.Any(l => l is not TrackNetworkLayer && l.HasAny(cell)))
+        if (!context.Map.Networks.Layers.Any(l => l.HasAny(cell)))
             return null;
         return context.Transport.Vehicles.FirstOrDefault(v => !v.Network.Trains && v.Position == cell
             && v.State is VehicleState.Travelling or VehicleState.Stuck or VehicleState.Loading or VehicleState.Unloading);
@@ -407,7 +203,7 @@ public sealed class TransportSystem : ISimulationSystem
         var reference = vehicle.Leg == Leg.ToA ? vehicle.A : vehicle.B;
         if (reference is not { } r || context.Transport.Stops.Find(r) is not { } stop)
             return (null, "пункт маршрута снесён");
-        return (stop.Area.Cells().ToHashSet(), stop.Name);
+        return (stop.Cells.ToHashSet(), stop.Name);
     }
 
     /// <summary>Сквозь депо и гаражи не ездят: в них заезжает только своя техника на обслуживание.</summary>
@@ -430,21 +226,25 @@ public sealed class TransportSystem : ISimulationSystem
             case Leg.ToA:
                 vehicle.SetState(VehicleState.Loading, "грузится");
                 vehicle.QueueTicket = context.Transport.NextTicket();
+                if (vehicle.Network.Trains)
+                    vehicle.Berth = BerthAtHead(vehicle, context);
                 break;
             case Leg.ToB:
                 vehicle.SetState(VehicleState.Unloading, "разгружается");
                 vehicle.QueueTicket = context.Transport.NextTicket();
+                if (vehicle.Network.Trains)
+                    vehicle.Berth = BerthAtHead(vehicle, context);
                 break;
             case Leg.ToDepot:
                 // Заехал в депо: путей больше не занимает и ничего не закрепляет.
                 if (vehicle.Network.Trains)
                 {
                     var rail = context.Transport.Rail(vehicle.Network.Network);
-                    var before = rail.SegmentsOf(vehicle).ToList();
-                    vehicle.PlaceAt(vehicle.Position);
+                    var cell = context.Map.Facilities.TryGet(vehicle.Depot, out var depot) ? depot.Area.Origin : vehicle.Position;
+                    rail.ReleaseAhead(vehicle);
+                    vehicle.PlaceAt(cell);
                     vehicle.SetState(VehicleState.Servicing, "на обслуживании");
-                    rail.Moved(vehicle, before);
-                    rail.Reservations.RemoveAll(vehicle.Id);
+                    rail.Moved(vehicle);
                 }
                 else
                 {
@@ -458,6 +258,7 @@ public sealed class TransportSystem : ISimulationSystem
     private static void Depart(Vehicle vehicle, Leg leg)
     {
         vehicle.Leg = leg;
+        vehicle.Berth = null;
         vehicle.ClearPath();
         vehicle.SetState(VehicleState.Travelling, "отправляется");
     }
@@ -501,7 +302,7 @@ public sealed class TransportSystem : ISimulationSystem
             vehicle.Reason = $"в очереди на {work} (впереди: {ahead})";
             return null;
         }
-        var fit = vehicle.PlatformFit(stop.Length);
+        var fit = Fit(vehicle, stop, context);
         var rate = new Mass((long)(site.Definition.HandlingPerHour.Kg * fit));
         return Mass.Min(context.Budget(site), Mass.Max(rate, new Mass(1)));
     }
@@ -555,7 +356,7 @@ public sealed class TransportSystem : ISimulationSystem
             Depart(vehicle, Leg.ToB);
             return;
         }
-        vehicle.Reason = used > Mass.Zero ? Working("грузится", vehicle, stop)
+        vehicle.Reason = used > Mass.Zero ? Working("грузится", vehicle, stop, context)
             : loadable.All(u => u.Carries.Where(Wanted).All(r => receiver.Stock.Free(r) - vehicle.CargoOf(r) <= Mass.Zero))
                 ? "ждёт: у получателя нет места"
                 : "ждёт груз";
@@ -591,13 +392,19 @@ public sealed class TransportSystem : ISimulationSystem
             Depart(vehicle, needsService ? Leg.ToDepot : Leg.ToA);
             return;
         }
-        vehicle.Reason = used > Mass.Zero ? Working("разгружается", vehicle, stop) : "ждёт: склад получателя полон";
+        vehicle.Reason = used > Mass.Zero ? Working("разгружается", vehicle, stop, context) : "ждёт: склад получателя полон";
     }
 
+    /// <summary>Какая доля состава у платформы: по платформе, у которой стоит поезд, иначе по длине пункта.</summary>
+    private static double Fit(Vehicle vehicle, Stop stop, Context context) =>
+        vehicle.Network.Trains && vehicle.Berth is { } berth && context.Map.Rails is { } rails && rails.ContainsBerth(berth)
+            ? vehicle.PlatformFitM(rails.Berth(berth).LengthM)
+            : vehicle.PlatformFit(stop.Length);
+
     /// <summary>«грузится» или «грузится медленнее: у платформы 60 % состава» для длинного состава.</summary>
-    private static string Working(string verb, Vehicle vehicle, Stop stop)
+    private static string Working(string verb, Vehicle vehicle, Stop stop, Context context)
     {
-        var fit = vehicle.PlatformFit(stop.Length);
+        var fit = Fit(vehicle, stop, context);
         return fit < 1 ? $"{verb} медленнее: у платформы {fit:P0} состава" : verb;
     }
 }

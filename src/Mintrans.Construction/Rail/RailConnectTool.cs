@@ -12,12 +12,15 @@ public sealed record FreeEndAnchor(TrackNodeId Node) : RailAnchor;
 
 /// <summary>
 /// Точка на прямом участке построенного пути — здесь встанет стрелка. <paramref name="AlongEdge"/> — движение А→Б
-/// идёт по направлению пути (от его начала к концу).
+/// идёт по направлению пути (от его начала к концу); null — инструмент пробует оба направления.
 /// </summary>
-public sealed record EdgePointAnchor(TrackEdgeId Edge, double DistanceM, bool AlongEdge) : RailAnchor;
+public sealed record EdgePointAnchor(TrackEdgeId Edge, double DistanceM, bool? AlongEdge = null) : RailAnchor;
 
 /// <summary>Новый конец пути в свободном месте с заданным направлением движения.</summary>
 public sealed record NewEndAnchor(Pose Pose, int Level = 0) : RailAnchor;
+
+/// <summary>Новый конец пути в свободном месте; направление в нём выберет построение (дуга и прямая, или прямая).</summary>
+public sealed record NewPointAnchor(WorldPoint At, int Level = 0) : RailAnchor;
 
 /// <summary>Один вариант соединения: кривая, изменение сети и результат его проверки.</summary>
 public sealed record RailConnectOption(CscCandidate Candidate, RailEdit Edit, RailEditPreview Check)
@@ -97,29 +100,32 @@ public sealed class RailConnectTool(RailNetwork network, RailEditorSettings sett
     public RailConnection Preview(RailAnchor a, RailAnchor b)
     {
         var rejections = new List<string>();
-        if (Resolve(a, outgoing: true, rejections) is not { } start || Resolve(b, outgoing: false, rejections) is not { } end)
+        var starts = Resolve(a, outgoing: true, rejections);
+        var ends = Resolve(b, outgoing: false, rejections);
+        if (starts.Count == 0 || ends.Count == 0)
             return new RailConnection(Network, [], 0, 0, rejections);
         if (a is EdgePointAnchor ea && b is EdgePointAnchor eb && ea.Edge == eb.Edge)
             return new RailConnection(Network, [], 0, 0, ["А и Б на одном пути — соедините через другой путь"]);
 
         var maxSweep = Angles.ToRadians(Settings.MaxArcSweepDeg) + 1e-9;
         var options = new List<RailConnectOption>();
-        foreach (var radius in Settings.AllowedRadii.OrderDescending())
-        foreach (var candidate in CscPlanner.Plan(start, end, radius))
+        foreach (var (startPose, startAnchor) in starts)
+        foreach (var (endPose, endAnchor) in ends)
+        foreach (var candidate in Candidates(startPose, startAnchor, endPose, endAnchor))
         {
             if (candidate.FirstSweep > maxSweep || candidate.SecondSweep > maxSweep)
             {
-                rejections.Add($"{candidate.Family}, R {radius:0} м: дуга круче {Settings.MaxArcSweepDeg:0}°");
+                rejections.Add($"{candidate.Family}, R {candidate.RadiusM:0} м: дуга круче {Settings.MaxArcSweepDeg:0}°");
                 continue;
             }
             // Прямая получается при любом радиусе — оставляем одну.
             if (options.Any(o => SameGeometry(o.Candidate.Geometry, candidate.Geometry)))
                 continue;
-            var edit = BuildEdit(a, b, candidate.Geometry);
+            var edit = BuildEdit(startAnchor, endAnchor, candidate.Geometry);
             var check = Network.Preview(edit);
             if (!check.IsValid)
             {
-                rejections.Add($"{candidate.Family}, R {radius:0} м: {check.Issues[0]}");
+                rejections.Add($"{candidate.Family}, R {candidate.RadiusM:0} м: {check.Issues[0]}");
                 continue;
             }
             options.Add(new RailConnectOption(candidate, edit, check));
@@ -143,6 +149,41 @@ public sealed class RailConnectTool(RailNetwork network, RailEditorSettings sett
     }
 
     /// <summary>
+    /// Кривые между точками А и Б: оба направления известны — «дуга — прямая — дуга»; известно одно —
+    /// дуга и прямая к свободной точке; ни одного — прямая.
+    /// </summary>
+    private IEnumerable<CscCandidate> Candidates(Pose? start, RailAnchor startAnchor, Pose? end, RailAnchor endAnchor)
+    {
+        var a = start ?? new Pose(((NewPointAnchor)startAnchor).At, 0);
+        var b = end ?? new Pose(((NewPointAnchor)endAnchor).At, 0);
+        if (start is null && end is null)
+        {
+            if (CscPlanner.Straight(a.At, b.At) is { } straight)
+                yield return straight;
+            yield break;
+        }
+        foreach (var radius in Settings.AllowedRadii.OrderDescending())
+        {
+            if (start is not null && end is not null)
+            {
+                foreach (var candidate in CscPlanner.Plan(a, b, radius))
+                    yield return candidate;
+            }
+            else if (start is not null)
+            {
+                foreach (var candidate in CscPlanner.ToPoint(a, b.At, radius))
+                    yield return candidate;
+            }
+            else
+            {
+                // От свободной точки к известному концу: строим обратный путь от Б и разворачиваем его.
+                foreach (var candidate in CscPlanner.ToPoint(new Pose(b.At, Angles.Reverse(b.Heading)), a.At, radius))
+                    yield return candidate with { Geometry = candidate.Geometry.Reversed() };
+            }
+        }
+    }
+
+    /// <summary>
     /// Выбор по умолчанию (docs/10в): из вариантов не длиннее <see cref="RailEditorSettings.MaxDefaultDetourRatio"/> кратчайшего —
     /// наибольший радиус, затем кратчайший, затем порядок семейств.
     /// </summary>
@@ -163,9 +204,10 @@ public sealed class RailConnectTool(RailNetwork network, RailEditorSettings sett
         x.Primitives.Zip(y.Primitives).All(p => p.First.End.ApproxEquals(p.Second.End, SpatialScale.EpsilonM));
 
     /// <summary>
-    /// Точка и направление движения у якоря. Для А — направление выезда из А, для Б — направление въезда в существующий путь.
+    /// Точки и направления движения у якоря. Для А — направление выезда из А, для Б — направление въезда в существующий путь.
+    /// У свободной точки направление не задано (null). Точка на пути без выбранного направления даёт два варианта.
     /// </summary>
-    private Pose? Resolve(RailAnchor anchor, bool outgoing, List<string> rejections)
+    private List<(Pose? Pose, RailAnchor Anchor)> Resolve(RailAnchor anchor, bool outgoing, List<string> rejections)
     {
         switch (anchor)
         {
@@ -175,28 +217,38 @@ public sealed class RailConnectTool(RailNetwork network, RailEditorSettings sett
                 if (end is null)
                 {
                     rejections.Add($"{free.Node} — не свободный конец пути");
-                    return null;
+                    return [];
                 }
-                return new Pose(end.At, outgoing ? end.Heading : Angles.Reverse(end.Heading));
+                return [(new Pose(end.At, outgoing ? end.Heading : Angles.Reverse(end.Heading)), anchor)];
             }
             case EdgePointAnchor point:
             {
                 if (!Network.ContainsEdge(point.Edge))
                 {
                     rejections.Add($"нет пути {point.Edge}");
-                    return null;
+                    return [];
                 }
                 var edge = Network.Edge(point.Edge);
+                if (Network.IsBridge(edge))
+                {
+                    rejections.Add("на мосту стрелку не врезать");
+                    return [];
+                }
                 if (SwitchProblem(edge, point.DistanceM) is { } problem)
                 {
                     rejections.Add(problem);
-                    return null;
+                    return [];
                 }
                 var heading = edge.Geometry.HeadingAt(point.DistanceM);
-                return new Pose(edge.Geometry.PointAt(point.DistanceM), point.AlongEdge ? heading : Angles.Reverse(heading));
+                var at = edge.Geometry.PointAt(point.DistanceM);
+                var directions = point.AlongEdge is { } along ? [along] : new[] { true, false };
+                return directions.Select(dir => ((Pose?)new Pose(at, dir ? heading : Angles.Reverse(heading)),
+                    (RailAnchor)(point with { AlongEdge = dir }))).ToList();
             }
             case NewEndAnchor fresh:
-                return fresh.Pose;
+                return [(fresh.Pose, anchor)];
+            case NewPointAnchor:
+                return [(null, anchor)];
             default:
                 throw new NotSupportedException($"Неизвестная точка подключения {anchor.GetType().Name}.");
         }
@@ -233,6 +285,7 @@ public sealed class RailConnectTool(RailNetwork network, RailEditorSettings sett
         FreeEndAnchor free => free.Node,
         EdgePointAnchor point => edit.SplitEdge(point.Edge, point.DistanceM),
         NewEndAnchor fresh => edit.NewNode(fresh.Pose.At, fresh.Level),
+        NewPointAnchor point => edit.NewNode(point.At, point.Level),
         _ => throw new NotSupportedException($"Неизвестная точка подключения {anchor.GetType().Name}."),
     };
 }

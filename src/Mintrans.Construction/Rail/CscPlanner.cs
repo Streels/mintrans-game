@@ -16,6 +16,15 @@ public enum CscFamily
     LSR,
     RSL,
     RSR,
+
+    /// <summary>Дуга налево и прямая к свободной точке (направление в конце не задано).</summary>
+    LS,
+
+    /// <summary>Дуга направо и прямая к свободной точке.</summary>
+    RS,
+
+    /// <summary>Прямая между двумя свободными точками.</summary>
+    S,
 }
 
 /// <summary>Вариант соединения: семейство, радиус, геометрия и углы дуг (без знака, рад).</summary>
@@ -33,7 +42,7 @@ public static class CscPlanner
 {
     public static IEnumerable<CscCandidate> Plan(Pose start, Pose end, double radiusM, double epsilonM = SpatialScale.EpsilonM)
     {
-        foreach (var family in Enum.GetValues<CscFamily>())
+        foreach (var family in new[] { CscFamily.LSL, CscFamily.LSR, CscFamily.RSL, CscFamily.RSR })
             if (Build(family, start, end, radiusM, epsilonM) is { } candidate)
                 yield return candidate;
     }
@@ -111,6 +120,51 @@ public static class CscPlanner
             return null;
         }
     }
+
+    /// <summary>
+    /// Соединения от ориентированной точки к свободной точке <paramref name="target"/>: дуга радиуса R налево или направо
+    /// и касательная прямая до цели (docs/10в, раздел 2). Направление в цели получается из построения.
+    /// </summary>
+    public static IEnumerable<CscCandidate> ToPoint(Pose start, WorldPoint target, double r, double epsilonM = SpatialScale.EpsilonM)
+    {
+        foreach (var (family, sign) in new[] { (CscFamily.LS, -1), (CscFamily.RS, +1) })
+        {
+            var center = start.At + WorldPoint.FromAngle(start.Heading).Perpendicular(sign) * r;
+            var toTarget = target - center;
+            var d = toTarget.Length;
+            if (d < r + epsilonM)
+                continue;
+            var straight = Math.Sqrt(d * d - r * r);
+            // Точка схода с дуги: вектор от центра к цели раскладывается на радиус r и касательную длиной straight.
+            var leave = toTarget.Angle - sign * Math.Atan2(straight, r);
+            var heading = Angles.Normalize2Pi(leave + sign * Math.PI / 2);
+            var sweep = Sweep(start.Heading, heading, sign);
+            var primitives = new List<PathPrimitive>();
+            if (sweep * r > epsilonM)
+                primitives.Add(Arc(center, r, start.At, sign * sweep));
+            var from = primitives.Count > 0 ? primitives[^1].End : start.At;
+            if (from.DistanceTo(target) > epsilonM)
+                primitives.Add(new StraightPrimitive(from, target));
+            if (primitives.Count == 0)
+                continue;
+            PathGeometry geometry;
+            try
+            {
+                geometry = new PathGeometry(primitives);
+            }
+            catch (ArgumentException)
+            {
+                continue;
+            }
+            yield return new CscCandidate(sweep * r > epsilonM ? family : CscFamily.S, r, geometry, sweep, 0);
+        }
+    }
+
+    /// <summary>Прямая между двумя точками.</summary>
+    public static CscCandidate? Straight(WorldPoint from, WorldPoint to, double epsilonM = SpatialScale.EpsilonM) =>
+        from.DistanceTo(to) > epsilonM
+            ? new CscCandidate(CscFamily.S, double.PositiveInfinity, new PathGeometry(new StraightPrimitive(from, to)), 0, 0)
+            : null;
 
     /// <summary>Угол поворота без знака от <paramref name="from"/> до <paramref name="to"/> в сторону <paramref name="sign"/>: 0…2π.</summary>
     private static double Sweep(double from, double to, int sign)

@@ -6,6 +6,7 @@ using Mintrans.Economy.Definitions;
 using Mintrans.Simulation.Time;
 using Mintrans.Transport.Definitions;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 using Mintrans.World.Terrain;
 
 namespace Mintrans.Data;
@@ -57,7 +58,11 @@ public sealed class GameContent
 
     /// <summary>Загрузить карту по имени файла без расширения: "prototype" → content/maps/prototype.json.</summary>
     public MapDescription LoadMap(string mapId) =>
-        new MapLoader(Terrain, Networks).Load(Read(Root, $"maps/{mapId}.json"));
+        new MapLoader(Terrain, Networks, railSettings: RailSettings).Load(Read(Root, $"maps/{mapId}.json"));
+
+    /// <summary>Свойства рельсового графа из правил строительства (docs/10в) или null, если рельсовой сети нет.</summary>
+    public RailNetworkSettings? RailSettings =>
+        Networks.FirstOrDefault(n => n.IsGraph) is { } rail ? Construction.RailEditor.NetworkSettings(rail.Id) : null;
 
     public IEnumerable<string> MapIds() =>
         Directory.EnumerateFiles(Path.Combine(Root, "maps"), "*.json")

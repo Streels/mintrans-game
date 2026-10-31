@@ -32,69 +32,6 @@ public class NetworkTests
     }
 
     [Fact]
-    public void Crossing_rails_do_not_allow_turning()
-    {
-        var rail = TestWorld.Map().Rail();
-        rail.LayPath([P(0, 2), P(1, 2), P(2, 2)]);
-        rail.LayPath([P(1, 1), P(1, 2), P(1, 3)]);
-
-        Assert.Equal(TrackPieces.EastWest | TrackPieces.NorthSouth, rail.PiecesAt(P(1, 2)));
-        Assert.False(rail.Connects(P(1, 2), Direction.West, Direction.South));
-        Assert.False(NetworkQueries.AreConnected(rail, [P(0, 2)], [P(1, 3)]));
-        Assert.True(NetworkQueries.AreConnected(rail, [P(0, 2)], [P(2, 2)]));
-    }
-
-    [Fact]
-    public void Rail_bend_lays_a_corner_piece()
-    {
-        var rail = TestWorld.Map().Rail();
-        rail.LayPath([P(0, 0), P(1, 0), P(1, 1)]);
-
-        Assert.Equal(TrackPieces.EastWest, rail.PiecesAt(P(0, 0)));
-        Assert.Equal(TrackPieces.SouthWest, rail.PiecesAt(P(1, 0)));
-        Assert.Equal(TrackPieces.NorthSouth, rail.PiecesAt(P(1, 1)));
-    }
-
-    [Fact]
-    public void Diagonal_is_a_staircase_of_corner_pieces()
-    {
-        // Диагональ, как в OpenTTD: каждая клетка лесенки получает угловой кусок.
-        var rail = TestWorld.Map().Rail();
-        rail.LayPath([P(0, 0), P(1, 0), P(1, 1), P(2, 1), P(2, 2), P(3, 2)]);
-
-        Assert.Equal(TrackPieces.SouthWest, rail.PiecesAt(P(1, 0)));
-        Assert.Equal(TrackPieces.NorthEast, rail.PiecesAt(P(1, 1)));
-        Assert.Equal(TrackPieces.SouthWest, rail.PiecesAt(P(2, 1)));
-        Assert.Equal(TrackPieces.NorthEast, rail.PiecesAt(P(2, 2)));
-        Assert.True(NetworkQueries.AreConnected(rail, [P(0, 0)], [P(3, 2)]));
-    }
-
-    [Fact]
-    public void New_rail_from_existing_dead_end_turns_into_it()
-    {
-        // Первая протяжка заканчивается в (5, 2), вторая начинается там же и уходит на юг:
-        // в (5, 2) должен получиться поворот, а не крест.
-        var rail = TestWorld.Map().Rail();
-        rail.LayPath([P(3, 2), P(4, 2), P(5, 2)]);
-        rail.LayPath([P(5, 2), P(5, 3), P(5, 4)]);
-
-        Assert.Equal(TrackPieces.EastWest | TrackPieces.SouthWest, rail.PiecesAt(P(5, 2)));
-        Assert.True(NetworkQueries.AreConnected(rail, [P(3, 2)], [P(5, 4)]));
-    }
-
-    [Fact]
-    public void New_rail_next_to_existing_end_joins_it()
-    {
-        var rail = TestWorld.Map().Rail();
-        rail.LayPath([P(1, 1), P(2, 1), P(3, 1)]);
-        // Начинаем в клетке сразу за концом (на неё он смотрит) и уходим на юг — путь поворачивает к концу.
-        rail.LayPath([P(4, 1), P(4, 2), P(4, 3)]);
-
-        Assert.Equal(TrackPieces.SouthWest, rail.PiecesAt(P(4, 1)));
-        Assert.True(NetworkQueries.AreConnected(rail, [P(1, 1)], [P(4, 3)]));
-    }
-
-    [Fact]
     public void Road_ending_next_to_road_connects()
     {
         var road = TestWorld.Map().Road();
@@ -104,19 +41,10 @@ public class NetworkTests
     }
 
     [Fact]
-    public void Path_in_open_field_does_not_snap()
-    {
-        var rail = TestWorld.Map().Rail();
-        rail.LayPath([P(1, 1), P(1, 2)]);
-        rail.LayPath([P(5, 5), P(6, 5)]);
-        Assert.Equal(TrackPieces.EastWest, rail.PiecesAt(P(5, 5)));
-    }
-
-    [Fact]
     public void Cells_touching_only_by_corner_are_not_linked()
     {
-        var rail = TestWorld.Map().Rail();
-        Assert.Throws<ArgumentException>(() => rail.LayPath([P(0, 0), P(1, 1)]));
+        var road = TestWorld.Map().Road();
+        Assert.Throws<ArgumentException>(() => road.LayPath([P(0, 0), P(1, 1)]));
     }
 
     [Fact]
@@ -125,14 +53,6 @@ public class NetworkTests
         var road = TestWorld.Map(4, 4).Road();
         Assert.Throws<ArgumentOutOfRangeException>(() => road.LayPath([P(3, 0), P(4, 0)]));
         Assert.Throws<ArgumentException>(() => road.LayPath([P(0, 0), P(1, 0), P(0, 0)]));
-    }
-
-    [Fact]
-    public void Networks_are_independent()
-    {
-        var map = TestWorld.Map();
-        map.Road().LayPath([P(1, 1), P(1, 2)]);
-        Assert.False(map.Rail().HasAny(P(1, 1)));
     }
 
     [Fact]
@@ -150,9 +70,9 @@ public class NetworkTests
     {
         var map = TestWorld.Map();
         map.Road().LayPath([P(1, 1), P(2, 1)]);
-        map.Rail().LayPath([P(5, 5), P(6, 5), P(6, 6)]);
+        map.Road().LayPath([P(5, 5), P(6, 5), P(6, 6)]);
 
-        Assert.Equal(2, map.Road().Strokes().Count());
-        Assert.Contains(new NetworkStroke(P(6, 5), Direction.South, Direction.West), map.Rail().Strokes());
+        Assert.Equal(6, map.Road().Strokes().Count());
+        Assert.Contains(new NetworkStroke(P(6, 5), null, Direction.South), map.Road().Strokes());
     }
 }

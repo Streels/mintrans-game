@@ -144,4 +144,23 @@ public sealed class PathGeometry
 
     /// <summary>Наименьшее расстояние от точки до оси пути.</summary>
     public double DistanceTo(WorldPoint p) => Flat.Min(seg => Distances.PointSegment(p, seg.A, seg.B));
+
+    /// <summary>
+    /// Ближайшая к <paramref name="p"/> точка оси: расстояние до неё от начала пути и её удаление от <paramref name="p"/>.
+    /// Точность — допуск ломаной (1 мм).
+    /// </summary>
+    public (double DistanceM, double OffsetM) Project(WorldPoint p)
+    {
+        var (bestS, bestOffset) = (0.0, double.PositiveInfinity);
+        foreach (var seg in Flat)
+        {
+            var ab = seg.B - seg.A;
+            var lengthSquared = ab.LengthSquared;
+            var t = lengthSquared > 0 ? Math.Clamp((p - seg.A).Dot(ab) / lengthSquared, 0, 1) : 0;
+            var offset = p.DistanceTo(seg.A + ab * t);
+            if (offset < bestOffset)
+                (bestS, bestOffset) = (seg.FromS + (seg.ToS - seg.FromS) * t, offset);
+        }
+        return (bestS, bestOffset);
+    }
 }

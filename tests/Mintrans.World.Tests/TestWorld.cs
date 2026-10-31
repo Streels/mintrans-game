@@ -17,10 +17,10 @@ internal static class TestWorld
         new(width, height, seed: 1, Catalog(),
         [
             new NetworkDefinition("road", EdgeNetworkLayer.LayoutName),
-            new NetworkDefinition("rail", TrackNetworkLayer.LayoutName),
+            new NetworkDefinition("rail", NetworkDefinition.GraphLayout),
         ]);
 
     public static EdgeNetworkLayer Road(this WorldMap map) => (EdgeNetworkLayer)map.Networks["road"];
 
-    public static TrackNetworkLayer Rail(this WorldMap map) => (TrackNetworkLayer)map.Networks["rail"];
+    public static Rail.RailNetwork Rail(this WorldMap map) => map.RequireRails();
 }

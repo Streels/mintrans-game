@@ -55,11 +55,15 @@ public sealed class TransportState
     public RailTraffic Rail(TypeId network)
     {
         if (!_rail.TryGetValue(network, out var traffic))
+        {
             _rail[network] = traffic = new RailTraffic(_map, this, Catalog.Network(network));
+            // Деление и снос путей: положения поездов переезжают на новые номера путей.
+            traffic.Rails.Changed += traffic.Remap;
+        }
         return traffic;
     }
 
-    /// <summary>Слой сети, по которой ездит техника данного вида.</summary>
+    /// <summary>Клеточный слой сети, по которой ездят грузовики.</summary>
     public World.Networks.NetworkLayer NetworkLayer(TypeId network) => _map.Networks[network];
 
     /// <summary>Рельсовые сети, по которым ездят поезда.</summary>

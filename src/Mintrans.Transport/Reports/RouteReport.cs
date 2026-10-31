@@ -88,11 +88,35 @@ public static class RouteReport
     /// <summary>Длина пути от пункта А до Б по сети техники, без учёта занятости.</summary>
     private static int? Distance(TransportState transport, Stop a, Stop b, Vehicle sample)
     {
+        if (sample.Network.Trains)
+            return RailDistance(transport.Rail(sample.Network.Network).Rails, a, b);
         var network = transport.NetworkLayer(sample.Network.Network);
         if (a.Area.Cells().Where(network.HasAny).Cast<GridPos?>().FirstOrDefault() is not { } start)
             return null;
         var route = Pathfinder.Search(network, new RoutePoint(start, null, null), b.Area.Cells().ToHashSet(),
             new RouteOptions { RunThrough = sample.Network.Trains });
         return route is null ? null : route.Points.Count - 1;
+    }
+
+    /// <summary>Длина пути по рельсам от платформ А до дальнего края платформ Б, в клетках по 5 м.</summary>
+    private static int? RailDistance(World.Rail.RailNetwork rails, Stop a, Stop b)
+    {
+        static IEnumerable<World.Rail.TrackPosition> Ends(World.Rail.RailNetwork rails, Stop stop, bool far)
+        {
+            foreach (var berth in stop.Berths.Where(rails.ContainsBerth).Select(rails.Berth))
+            {
+                var forward = new World.Rail.DirectedEdge(berth.Edge, true);
+                var backward = forward.Reverse();
+                yield return new World.Rail.TrackPosition(forward, far ? berth.ToM : berth.FromM);
+                yield return new World.Rail.TrackPosition(backward, rails.LengthOf(backward) - (far ? berth.FromM : berth.ToM));
+            }
+        }
+        var targets = Ends(rails, b, far: true).ToList();
+        var best = Ends(rails, a, far: true)
+            .Select(start => Rail.TrainRouter.Find(rails, start, targets, new Rail.TrainRouteOptions { SpeedMph = 1 })?.Hours)
+            .Where(h => h is not null)
+            .DefaultIfEmpty(null)
+            .Min();
+        return best is { } metres ? (int)Math.Round(metres / Core.Spatial.SpatialScale.CellM) : null;
     }
 }
