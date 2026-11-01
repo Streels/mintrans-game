@@ -10,20 +10,24 @@ namespace Mintrans.World.Networks;
 public static class NetworkQueries
 {
     /// <summary>Все клетки на земле, достижимые по сети из <paramref name="start"/>, включая её саму. Клетки пролётов не входят.</summary>
-    public static HashSet<GridPos> ReachableFrom(NetworkLayer network, GridPos start)
+    public static HashSet<GridPos> ReachableFrom(NetworkLayer network, GridPos start) => ReachableFrom(network, [start]);
+
+    /// <summary>Все клетки на земле, достижимые по сети хотя бы из одной стартовой клетки — одним обходом.</summary>
+    public static HashSet<GridPos> ReachableFrom(NetworkLayer network, IEnumerable<GridPos> starts)
     {
         var cells = new HashSet<GridPos>();
-        if (!network.HasAny(start))
-            return cells;
-        cells.Add(start);
-
         // Состояние обхода — клетка, на мосту ли она и сторона, через которую из неё выезжаем.
         var visited = new HashSet<(GridPos, bool, Direction)>();
         var queue = new Queue<(GridPos Cell, bool Elevated, Direction Exit)>();
-        foreach (var side in network.ExitsFrom(start, null))
+        foreach (var start in starts)
         {
-            visited.Add((start, false, side));
-            queue.Enqueue((start, false, side));
+            if (!network.Contains(start) || !network.HasAny(start) || !cells.Add(start))
+                continue;
+            foreach (var side in network.ExitsFrom(start, null))
+            {
+                if (visited.Add((start, false, side)))
+                    queue.Enqueue((start, false, side));
+            }
         }
 
         while (queue.Count > 0)
@@ -43,14 +47,6 @@ public static class NetworkQueries
     }
 
     /// <summary>Есть ли путь по сети между любыми клетками двух множеств.</summary>
-    public static bool AreConnected(NetworkLayer network, IEnumerable<GridPos> from, IEnumerable<GridPos> to)
-    {
-        var targets = to.ToHashSet();
-        foreach (var start in from)
-        {
-            if (network.HasAny(start) && ReachableFrom(network, start).Overlaps(targets))
-                return true;
-        }
-        return false;
-    }
+    public static bool AreConnected(NetworkLayer network, IEnumerable<GridPos> from, IEnumerable<GridPos> to) =>
+        ReachableFrom(network, from).Overlaps(to);
 }

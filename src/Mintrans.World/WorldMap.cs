@@ -10,21 +10,23 @@ using Mintrans.World.Terrain;
 namespace Mintrans.World;
 
 /// <summary>
-/// Карта мира: строительная сетка 5×5 м с природными слоями, клеточными сетями (дороги) и объектами, плюс
+/// Карта мира: строительная сетка 5×5 м (разреженная: память — только под занятые клетки) с природными слоями
+/// на крупной сетке рельефа, клеточными сетями (дороги) и объектами, плюс
 /// пространственный мир в метрах (docs/02в) с рельсовым графом (docs/10в). Ничего не знает об изометрии, Godot и экономике.
 /// </summary>
 public sealed class WorldMap
 {
     /// <param name="railSettings">Свойства рельсового графа; по умолчанию — черновые параметры v1 (docs/10в).</param>
+    /// <param name="terrainStep">Шаг сетки рельефа в строительных клетках (docs/02в, раздел 5); 1 — рельеф в каждой клетке.</param>
     public WorldMap(int width, int height, ulong seed, TerrainCatalog terrainCatalog, IEnumerable<NetworkDefinition> networks,
-        RailNetworkSettings? railSettings = null)
+        RailNetworkSettings? railSettings = null, int terrainStep = 1)
     {
         if (width <= 0 || height <= 0)
             throw new ArgumentOutOfRangeException(nameof(width), $"Размер карты должен быть положительным: {width}x{height}.");
         Width = width;
         Height = height;
         Seed = seed;
-        Terrain = new TerrainLayers(terrainCatalog, width, height);
+        Terrain = new TerrainLayers(terrainCatalog, width, height, terrainStep);
         var definitions = networks.ToList();
         Networks = new NetworkSet(definitions, width, height);
         Sites = new SiteRegistry(width, height);

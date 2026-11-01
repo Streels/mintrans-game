@@ -70,9 +70,11 @@ public sealed class TerrainColorizer
         var height = _map.Terrain.Height[cell];
         var shade = 1f + height * _style.ShadePerLevel;
         // Свет с северо-запада: склон, обращённый к свету, светлее.
-        var slope = HeightAt(cell.X - 1, cell.Y, height) + HeightAt(cell.X, cell.Y - 1, height) - 2 * height;
+        // Соседи — соседние ячейки рельефа (на крупной сетке — через Step клеток).
+        var step = _map.Terrain.Step;
+        var slope = HeightAt(cell.X - step, cell.Y, height) + HeightAt(cell.X, cell.Y - step, height) - 2 * height;
         shade += -slope * _style.SlopeShade;
-        if (((cell.X + cell.Y) & 1) == 0)
+        if (((cell.X / step + cell.Y / step) & 1) == 0)
             shade += _style.Checker;
         return new Color(color.R * shade, color.G * shade, color.B * shade, 1f);
     }

@@ -92,19 +92,10 @@ public abstract class NetworkLayer
     /// <summary>Как нарисовать сеть в клетке.</summary>
     public abstract IEnumerable<NetworkStroke> StrokesAt(GridPos pos);
 
-    public IEnumerable<NetworkStroke> Strokes()
-    {
-        for (var y = 0; y < Height; y++)
-        for (var x = 0; x < Width; x++)
-        {
-            var pos = new GridPos(x, y);
-            if (HasAny(pos))
-            {
-                foreach (var stroke in StrokesAt(pos))
-                    yield return stroke;
-            }
-        }
-    }
+    /// <summary>Клетки, где есть сеть, в постоянном порядке — без обхода всей карты.</summary>
+    public abstract IEnumerable<GridPos> OccupiedCells();
+
+    public IEnumerable<NetworkStroke> Strokes() => OccupiedCells().SelectMany(StrokesAt);
 
     // ---------- Мосты ----------
 

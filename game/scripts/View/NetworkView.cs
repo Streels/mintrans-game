@@ -21,6 +21,7 @@ public partial class NetworkView : Node2D
     private readonly List<(Vector2[] Points, bool Bridge, Vector2[] Piers)> _rails = new();
     private readonly List<Vector2[]> _platforms = new();
     private int _builtRevision = -1;
+    private float _drawnZoom = 1;
 
     public void Init(WorldMap map, IsoProjection projection, MapStyle style)
     {
@@ -34,16 +35,24 @@ public partial class NetworkView : Node2D
     {
         if (Revision() != _builtRevision)
             Rebuild();
+        else if (Math.Abs(Zoom() / _drawnZoom - 1) > 0.1f)
+            QueueRedraw();
     }
+
+    private float Zoom() => Math.Max(1e-4f, GetCanvasTransform().Scale.X);
+
+    /// <summary>Толщина линии в мире: не тоньше заданной в стиле и не тоньше <paramref name="pixels"/> пикселей на экране.</summary>
+    private float Width(float style, float pixels) => Math.Max(style, pixels / _drawnZoom);
 
     public override void _Draw()
     {
+        _drawnZoom = Zoom();
         foreach (var (layer, points) in _lines)
         {
             if (points.Length == 0)
                 continue;
             var style = _style.NetworkFor(layer.Type);
-            DrawMultiline(points, style.Color, style.Width);
+            DrawMultiline(points, style.Color, Width(style.Width, 1.5f));
         }
         foreach (var layer in _map.Networks.Layers)
         {
@@ -55,17 +64,17 @@ public partial class NetworkView : Node2D
         var rail = _style.Rail;
         var line = _style.NetworkFor(rails.Settings.Kind);
         foreach (var platform in _platforms)
-            DrawPolyline(platform, rail.Platform, line.Width + 3f);
+            DrawPolyline(platform, rail.Platform, Width(line.Width + 3f, 3f));
         foreach (var (points, bridge, piers) in _rails)
         {
             if (bridge)
             {
                 for (var i = 0; i + 1 < piers.Length; i += 2)
                     DrawLine(piers[i], piers[i + 1], rail.BridgePier, 3f);
-                DrawPolyline(points, rail.BridgeEdge, line.Width + 6f);
-                DrawPolyline(points, rail.BridgeDeck, line.Width + 3f);
+                DrawPolyline(points, rail.BridgeEdge, Width(line.Width + 6f, 4f));
+                DrawPolyline(points, rail.BridgeDeck, Width(line.Width + 3f, 3f));
             }
-            DrawPolyline(points, line.Color, line.Width);
+            DrawPolyline(points, line.Color, Width(line.Width, 2f));
         }
     }
 

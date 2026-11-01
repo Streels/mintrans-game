@@ -49,8 +49,12 @@ public sealed class MapLoader
         if (width <= 0 || height <= 0)
             throw root.Get("size").Error($"размер карты должен быть положительным: {width}x{height}");
         var seed = root.Find("seed")?.AsULong() ?? 0;
+        // Шаг сетки рельефа в клетках (docs/02в, раздел 5): на большой карте рельеф хранится крупнее строительной сетки.
+        var terrainStep = root.Find("terrainStep")?.AsInt() ?? 1;
+        if (terrainStep <= 0)
+            throw root.Get("terrainStep").Error("шаг рельефа должен быть положительным");
 
-        var map = new WorldMap(width, height, seed, _terrain, _networks, _railSettings);
+        var map = new WorldMap(width, height, seed, _terrain, _networks, _railSettings, terrainStep);
 
         foreach (var step in root.Find("terrain")?.Items() ?? [])
             _terrainOperations.Apply(step, map);

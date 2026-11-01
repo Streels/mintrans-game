@@ -1,14 +1,19 @@
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 
 namespace Mintrans.World.Layers;
 
 /// <summary>
-/// Одно значение на каждую клетку карты, хранится плотным массивом.
-/// Основа всех слоёв мира: высоты, поверхности, сетей, занятости.
+/// Одно значение на каждую клетку карты, хранится разреженно (docs/02в): чанками по
+/// <see cref="SpatialScale.ChunkCells"/>×<see cref="SpatialScale.ChunkCells"/> клеток, только там, где значение
+/// отличается от значения по умолчанию. Пустая карта 40×40 км (8 000×8 000 клеток) не выделяет памяти под клетки.
+/// Основа слоёв мира: сетей, занятости площадок и сооружений.
 /// </summary>
 public sealed class CellLayer<T> where T : unmanaged
 {
-    private readonly T[] _cells;
+    private const int Size = SpatialScale.ChunkCells;
+    private readonly Dictionary<(int X, int Y), T[]> _chunks = new();
+    private T _default;
 
     public CellLayer(int width, int height, T initial = default)
     {
@@ -16,9 +21,7 @@ public sealed class CellLayer<T> where T : unmanaged
             throw new ArgumentOutOfRangeException(nameof(width), $"Размер слоя должен быть положительным: {width}x{height}.");
         Width = width;
         Height = height;
-        _cells = new T[width * height];
-        if (!EqualityComparer<T>.Default.Equals(initial, default))
-            Array.Fill(_cells, initial);
+        _default = initial;
     }
 
     public int Width { get; }
@@ -28,14 +31,34 @@ public sealed class CellLayer<T> where T : unmanaged
     /// <summary>Растёт при каждом изменении. Отображение по нему понимает, что слой пора перерисовать.</summary>
     public int Revision { get; private set; }
 
+    /// <summary>Значение клеток, о которых ничего не записано.</summary>
+    public T Default => _default;
+
+    /// <summary>Сколько чанков хранит записи (для проверки разреженности).</summary>
+    public int ChunkCount => _chunks.Count;
+
     public bool Contains(GridPos pos) => pos.X >= 0 && pos.X < Width && pos.Y >= 0 && pos.Y < Height;
 
     public T this[GridPos pos]
     {
-        get => _cells[IndexOf(pos)];
+        get
+        {
+            Check(pos);
+            return _chunks.TryGetValue((pos.X / Size, pos.Y / Size), out var chunk) ? chunk[Local(pos)] : _default;
+        }
         set
         {
-            _cells[IndexOf(pos)] = value;
+            Check(pos);
+            var key = (pos.X / Size, pos.Y / Size);
+            if (!_chunks.TryGetValue(key, out var chunk))
+            {
+                if (EqualityComparer<T>.Default.Equals(value, _default))
+                    return;
+                _chunks[key] = chunk = new T[Size * Size];
+                if (!EqualityComparer<T>.Default.Equals(_default, default))
+                    Array.Fill(chunk, _default);
+            }
+            chunk[Local(pos)] = value;
             Revision++;
         }
     }
@@ -46,19 +69,44 @@ public sealed class CellLayer<T> where T : unmanaged
         set => this[new GridPos(x, y)] = value;
     }
 
+    /// <summary>Записать во все клетки одно значение: записи удаляются, оно становится значением по умолчанию.</summary>
     public void Fill(T value)
     {
-        Array.Fill(_cells, value);
+        _chunks.Clear();
+        _default = value;
         Revision++;
     }
 
-    /// <summary>Только чтение всего слоя — для быстрой отрисовки и сравнения.</summary>
-    public ReadOnlySpan<T> AsSpan() => _cells;
+    /// <summary>
+    /// Клетки со значением, отличным от значения по умолчанию, в постоянном порядке: чанки по строкам, внутри — по строкам.
+    /// </summary>
+    public IEnumerable<(GridPos Cell, T Value)> NonDefault()
+    {
+        foreach (var key in _chunks.Keys.OrderBy(k => k.Y).ThenBy(k => k.X).ToList())
+        {
+            var chunk = _chunks[key];
+            for (var i = 0; i < chunk.Length; i++)
+            {
+                if (EqualityComparer<T>.Default.Equals(chunk[i], _default))
+                    continue;
+                var cell = new GridPos(key.X * Size + i % Size, key.Y * Size + i / Size);
+                if (Contains(cell))
+                    yield return (cell, chunk[i]);
+            }
+        }
+    }
 
-    private int IndexOf(GridPos pos)
+    /// <summary>Совпадают ли значения всех клеток двух слоёв одного размера.</summary>
+    public bool SameAs(CellLayer<T> other) =>
+        Width == other.Width && Height == other.Height &&
+        EqualityComparer<T>.Default.Equals(_default, other._default) &&
+        NonDefault().SequenceEqual(other.NonDefault());
+
+    private static int Local(GridPos pos) => pos.Y % Size * Size + pos.X % Size;
+
+    private void Check(GridPos pos)
     {
         if (!Contains(pos))
             throw new ArgumentOutOfRangeException(nameof(pos), $"Клетка {pos} вне карты {Width}x{Height}.");
-        return pos.Y * Width + pos.X;
     }
 }

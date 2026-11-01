@@ -69,11 +69,17 @@ public partial class BuildController : Node2D
             UpdatePreview();
     }
 
-    /// <summary>Камера могла сдвинуться без движения мыши — пересчитать точку под курсором.</summary>
+    /// <summary>Камера могла сдвинуться без движения мыши — пересчитать точку под курсором и сетку стройки.</summary>
     public override void _Process(double delta)
     {
         if (_lastMouse is { } mouse)
             TrackHover(mouse);
+        var transform = GetCanvasTransform();
+        if (Tool is not null && (transform.Scale.X != _gridZoom || transform.Origin != _gridOrigin))
+        {
+            (_gridZoom, _gridOrigin) = (transform.Scale.X, transform.Origin);
+            QueueRedraw();
+        }
     }
 
     public override void _UnhandledInput(InputEvent @event)
@@ -172,8 +178,51 @@ public partial class BuildController : Node2D
         QueueRedraw();
     }
 
+    private static readonly Color GridLine = new(1f, 1f, 1f, 0.16f);
+
+    /// <summary>С какого размера клетки на экране (в пикселях) показывать сетку стройки: мельче она превращается в шум.</summary>
+    private const float GridMinCellPixels = 10f;
+
+    /// <summary>
+    /// Сетка стройки (docs/02в, раздел 6): только видимая часть единой мировой сетки 5 м, только с выбранным
+    /// инструментом и только при достаточном приближении. Привязана к мировым координатам, рельеф не учитывает.
+    /// </summary>
+    private void DrawGrid()
+    {
+        var zoom = Math.Max(1e-4f, GetCanvasTransform().Scale.X);
+        if (Tool is null || _projection.TileWidth * zoom < GridMinCellPixels)
+            return;
+        var inverse = GetCanvasTransform().AffineInverse();
+        var size = GetViewportRect().Size;
+        Vector2[] screen = [Vector2.Zero, new(size.X, 0), size, new(0, size.Y)];
+        var grid = screen.Select(p => Flat(inverse * p)).ToList();
+        var (x0, x1) = ((int)Math.Floor(grid.Min(g => g.X)), (int)Math.Ceiling(grid.Max(g => g.X)));
+        var (y0, y1) = ((int)Math.Floor(grid.Min(g => g.Y)), (int)Math.Ceiling(grid.Max(g => g.Y)));
+        (x0, x1) = (Math.Max(0, x0), Math.Min(_map.Width, x1));
+        (y0, y1) = (Math.Max(0, y0), Math.Min(_map.Height, y1));
+        if (x1 - x0 > 600 || y1 - y0 > 600)
+            return;
+        var width = 1f / zoom;
+        for (var x = x0; x <= x1; x++)
+            DrawLine(_projection.GridPoint(x, y0, 0), _projection.GridPoint(x, y1, 0), GridLine, width);
+        for (var y = y0; y <= y1; y++)
+            DrawLine(_projection.GridPoint(x0, y, 0), _projection.GridPoint(x1, y, 0), GridLine, width);
+    }
+
+    /// <summary>Точка сетки (дробные клетки) под точкой экрана на нулевой высоте.</summary>
+    private Vector2 Flat(Vector2 screen)
+    {
+        var a = screen.X / (_projection.TileWidth / 2f);
+        var b = screen.Y / (_projection.TileHeight / 2f);
+        return new Vector2((a + b) / 2f, (b - a) / 2f);
+    }
+
+    private float _gridZoom;
+    private Vector2 _gridOrigin;
+
     public override void _Draw()
     {
+        DrawGrid();
         if (_preview is null)
             return;
         foreach (var cell in _preview.Cells)

@@ -2,8 +2,10 @@
 // Модели — реальные прототипы из каталога docs/11a_vehicle_models.md, только грузовые и без электротяги:
 // электровозам и электричкам нужна контактная сеть, пассажирской технике — пассажиры (темы ещё не обсуждены).
 // availableFromYear — с какого года модель продаётся (по «ориентиру появления» каталога, уточняется при балансе).
-// Все игровые числа ВРЕМЕННЫЕ: speed — клеток за час, capacity — т (у грузовиков — реальная грузоподъёмность),
+// Все игровые числа ВРЕМЕННЫЕ: speed — клеток по 5 м за игровой час, capacity — т (у грузовиков — реальная грузоподъёмность),
 // length — единиц длины (2 единицы на клетку пути), maxWagons — сколько вагонов тянет локомотив.
+// Скорости приведены к темпу docs/03а: обычный грузовой поезд при 1× проходит 4–5 клеток за реальную секунду.
+// При 2 с на игровой час (simulation.json) это около 9 клеток в час у паровоза Л; остальные модели — в той же пропорции.
 {
   "networks": [
     // stopSlots — сколько машин пункт обслуживает одновременно (docs/12: от 2 до 10), остальные ждут.
@@ -26,20 +28,20 @@
   "models": [
     // --- Паровозы ---
     { "id": "steam_fd", "title": "Паровоз ФД", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1950, "speed": 1.4, "maxWagons": 20, "length": 2 },
+      "availableFromYear": 1950, "speed": 8.4, "maxWagons": 20, "length": 2 },
     // Стартовый паровоз прототипа (docs/11b): 12 гружёных вагонов — временный предел до модели тяги.
     { "id": "steam_l", "title": "Паровоз Л", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1950, "speed": 1.5, "maxWagons": 12, "length": 2 },
+      "availableFromYear": 1950, "speed": 9, "maxWagons": 12, "length": 2 },
 
     // --- Магистральные тепловозы ---
     { "id": "diesel_te2", "title": "Тепловоз ТЭ2", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1950, "speed": 1.6, "maxWagons": 12, "length": 2 },
+      "availableFromYear": 1950, "speed": 9.6, "maxWagons": 12, "length": 2 },
     { "id": "diesel_te3", "title": "Тепловоз ТЭ3", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1956, "speed": 1.8, "maxWagons": 18, "length": 3 },
+      "availableFromYear": 1956, "speed": 10.8, "maxWagons": 18, "length": 3 },
     { "id": "diesel_2te116", "title": "Тепловоз 2ТЭ116", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1972, "speed": 2.0, "maxWagons": 24, "length": 3 },
+      "availableFromYear": 1972, "speed": 12, "maxWagons": 24, "length": 3 },
     { "id": "diesel_2te121", "title": "Тепловоз 2ТЭ121", "role": "locomotive", "network": "rail",
-      "availableFromYear": 1985, "speed": 2.0, "maxWagons": 28, "length": 3 },
+      "availableFromYear": 1985, "speed": 12, "maxWagons": 28, "length": 3 },
 
     // --- Вагоны ---
     { "id": "gondola", "title": "Полувагон", "role": "wagon", "network": "rail",
@@ -49,38 +51,40 @@
 
     // --- Лёгкие грузовики ---
     { "id": "uaz_450d", "title": "УАЗ-450Д", "role": "truck", "network": "road",
-      "availableFromYear": 1958, "speed": 2.2, "capacity": 0.8, "bodies": ["flatbed"], "length": 1 },
+      "availableFromYear": 1958, "speed": 13.2, "capacity": 0.8, "bodies": ["flatbed"], "length": 1 },
     { "id": "uaz_3303", "title": "УАЗ-3303", "role": "truck", "network": "road",
-      "availableFromYear": 1985, "speed": 2.4, "capacity": 1.2, "bodies": ["flatbed"], "length": 1 },
+      "availableFromYear": 1985, "speed": 14.4, "capacity": 1.2, "bodies": ["flatbed"], "length": 1 },
     { "id": "gaz_3302", "title": "ГАЗ-3302 «Газель»", "role": "truck", "network": "road",
-      "availableFromYear": 1994, "speed": 2.6, "capacity": 1.5, "bodies": ["flatbed"], "length": 1 },
+      "availableFromYear": 1994, "speed": 15.6, "capacity": 1.5, "bodies": ["flatbed"], "length": 1 },
 
     // --- Средние грузовики ---
     // Стартовый грузовик прототипа (docs/11b): реальная грузоподъёмность 2,5 т.
     { "id": "gaz_51", "title": "ГАЗ-51", "role": "truck", "network": "road",
-      "availableFromYear": 1950, "speed": 2.0, "capacity": 2.5, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1950, "speed": 12, "capacity": 2.5, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "gaz_53a", "title": "ГАЗ-53А", "role": "truck", "network": "road",
-      "availableFromYear": 1962, "speed": 2.2, "capacity": 4, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1962, "speed": 13.2, "capacity": 4, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "gaz_3307", "title": "ГАЗ-3307", "role": "truck", "network": "road",
-      "availableFromYear": 1989, "speed": 2.4, "capacity": 4.5, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1989, "speed": 14.4, "capacity": 4.5, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "gaz_3309", "title": "ГАЗ-3309", "role": "truck", "network": "road",
-      "availableFromYear": 1994, "speed": 2.5, "capacity": 4.5, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1994, "speed": 15, "capacity": 4.5, "bodies": ["flatbed", "dump"], "length": 1 },
 
     // --- Тяжёлые грузовики ---
     { "id": "maz_200", "title": "МАЗ-200", "role": "truck", "network": "road",
-      "availableFromYear": 1950, "speed": 1.8, "capacity": 7, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1950, "speed": 10.8, "capacity": 7, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "maz_500a", "title": "МАЗ-500А", "role": "truck", "network": "road",
-      "availableFromYear": 1970, "speed": 2.2, "capacity": 8, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1970, "speed": 13.2, "capacity": 8, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "kamaz_5320", "title": "КамАЗ-5320", "role": "truck", "network": "road",
-      "availableFromYear": 1976, "speed": 2.4, "capacity": 8, "bodies": ["flatbed", "dump"], "length": 1 },
+      "availableFromYear": 1976, "speed": 14.4, "capacity": 8, "bodies": ["flatbed", "dump"], "length": 1 },
     { "id": "kamaz_53212", "title": "КамАЗ-53212", "role": "truck", "network": "road",
-      "availableFromYear": 1980, "speed": 2.4, "capacity": 10, "bodies": ["flatbed"], "length": 1 },
+      "availableFromYear": 1980, "speed": 14.4, "capacity": 10, "bodies": ["flatbed"], "length": 1 },
     { "id": "kamaz_65115", "title": "КамАЗ-65115", "role": "truck", "network": "road",
-      "availableFromYear": 1998, "speed": 2.5, "capacity": 15, "bodies": ["dump"], "length": 1 }
+      "availableFromYear": 1998, "speed": 15, "capacity": 15, "bodies": ["dump"], "length": 1 }
   ],
 
   // Износ растёт на каждой клетке пути; после разгрузки при износе от serviceAt техника едет на обслуживание.
-  "maintenance": { "wearPerCell": 0.0005, "serviceAt": 0.8, "serviceHours": 24 },
+  // На карте 40×40 км рейсы в 6–7 раз длиннее прежних, поэтому износ за клетку уменьшен так же:
+  // поезд по-прежнему встаёт на обслуживание примерно раз в два-три рейса.
+  "maintenance": { "wearPerCell": 0.0001, "serviceAt": 0.8, "serviceHours": 24 },
 
   // Сколько часов ждать полной загрузки, прежде чем ехать с тем, что уже погружено.
   "loading": { "maxWaitHours": 48 },

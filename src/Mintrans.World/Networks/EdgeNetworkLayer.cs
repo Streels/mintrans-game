@@ -23,6 +23,8 @@ public sealed class EdgeNetworkLayer : NetworkLayer
 
     public override DirectionMask EdgesAt(GridPos pos) => _edges[pos];
 
+    public override IEnumerable<GridPos> OccupiedCells() => _edges.NonDefault().Select(c => c.Cell);
+
     public override bool Connects(GridPos pos, Direction from, Direction to) =>
         from != to && _edges[pos].Has(from) && _edges[pos].Has(to);
 

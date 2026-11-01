@@ -5,8 +5,8 @@ using Mintrans.World;
 namespace Mintrans.Game.View;
 
 /// <summary>
-/// Рельеф одной сеткой треугольников: верх каждой клетки и видимые обрывы к более низким соседям.
-/// Клетки рисуются от дальних к ближним (по x + y), поэтому высокие клетки правильно закрывают задние.
+/// Рельеф одной сеткой треугольников: верх каждой ячейки рельефа и видимые обрывы к более низким соседям.
+/// Ячейки рисуются от дальних к ближним (по x + y), поэтому высокие правильно закрывают задние.
 /// </summary>
 public partial class TerrainView : Node2D
 {
@@ -32,17 +32,21 @@ public partial class TerrainView : Node2D
             Rebuild();
     }
 
-    private int Revision() => _map.Terrain.Height.Revision + _map.Terrain.Layers.Sum(l => l.Cells.Revision);
+    private int Revision() => _map.Terrain.Revision;
 
     private void Rebuild()
     {
+        // Рельеф хранится на крупной сетке (docs/02в): одна плитка — ячейка рельефа из Step×Step строительных клеток.
         var colorizer = new TerrainColorizer(_map, _style);
-        var heights = _map.Terrain.Height;
-        var minHeight = heights.AsSpan().ToArray().Min() - 3;
+        var terrain = _map.Terrain;
+        var step = terrain.Step;
+        var coarse = terrain.Height.Coarse;
+        var (width, height) = (coarse.Width, coarse.Height);
+        var minHeight = coarse.NonDefault().Select(c => (int)c.Value).Append(coarse.Default).Min() - 3;
 
-        var vertices = new List<Vector2>(_map.Width * _map.Height * 6);
+        var vertices = new List<Vector2>(width * height * 6);
         var colors = new List<Color>(vertices.Capacity);
-        var indices = new List<int>(_map.Width * _map.Height * 12);
+        var indices = new List<int>(width * height * 12);
 
         void Quad(Vector2 a, Vector2 b, Vector2 c, Vector2 d, Color color)
         {
@@ -53,24 +57,30 @@ public partial class TerrainView : Node2D
         }
 
         int HeightOr(int x, int y, int fallback) =>
-            _map.Contains(new GridPos(x, y)) ? heights[x, y] : fallback;
+            x >= 0 && y >= 0 && x < width && y < height ? coarse[x, y] : fallback;
 
-        for (var diagonal = 0; diagonal < _map.Width + _map.Height - 1; diagonal++)
-        for (var x = Math.Max(0, diagonal - _map.Height + 1); x <= Math.Min(diagonal, _map.Width - 1); x++)
+        for (var diagonal = 0; diagonal < width + height - 1; diagonal++)
+        for (var x = Math.Max(0, diagonal - height + 1); x <= Math.Min(diagonal, width - 1); x++)
         {
-            var cell = new GridPos(x, diagonal - x);
-            int h = heights[cell];
-            var (top, right, bottom, left) = _projection.CellCorners(cell, h);
-            Quad(top, right, bottom, left, colorizer.TopColor(cell));
+            var y = diagonal - x;
+            int h = coarse[x, y];
+            var (x0, y0) = (x * step, y * step);
+            var (x1, y1) = (Math.Min(_map.Width, x0 + step), Math.Min(_map.Height, y0 + step));
+            var top = _projection.GridPoint(x0, y0, h);
+            var right = _projection.GridPoint(x1, y0, h);
+            var bottom = _projection.GridPoint(x1, y1, h);
+            var left = _projection.GridPoint(x0, y1, h);
+            var sample = new Core.Grid.GridPos(Math.Min(x0 + step / 2, _map.Width - 1), Math.Min(y0 + step / 2, _map.Height - 1));
+            Quad(top, right, bottom, left, colorizer.TopColor(sample));
 
             // Обрыв на юго-восток (к соседу x + 1) и на юго-запад (к соседу y + 1), если сосед ниже.
-            var eastH = HeightOr(cell.X + 1, cell.Y, minHeight);
+            var eastH = HeightOr(x + 1, y, minHeight);
             if (eastH < h)
             {
                 var drop = (h - eastH) * _projection.HeightStep;
                 Quad(right, bottom, bottom + new Vector2(0, drop), right + new Vector2(0, drop), _style.CliffRight);
             }
-            var southH = HeightOr(cell.X, cell.Y + 1, minHeight);
+            var southH = HeightOr(x, y + 1, minHeight);
             if (southH < h)
             {
                 var drop = (h - southH) * _projection.HeightStep;

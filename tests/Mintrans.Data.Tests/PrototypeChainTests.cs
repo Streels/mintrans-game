@@ -18,8 +18,6 @@ namespace Mintrans.Data.Tests;
 /// </summary>
 public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
 {
-    private static GridPos P(int x, int y) => new(x, y);
-
     [Fact]
     public void Coal_and_ore_by_rail_steel_by_truck_reach_the_city()
     {
@@ -32,17 +30,10 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         var transport = TransportModule.Install(simulation, content.Transport);
         var builder = new Builder(map, content.Construction);
 
-        // 1. Железная дорога: линии, платформы станций и депо (docs/10в).
+        // 1. Железная дорога: линии, платформы станций, депо и сигналы (docs/10в).
         var (coalDepot, oreDepot) = PrototypeRails.Build(builder);
-        // 2. Автостанция завода, дорога до города и городской пункт на улице.
-        Built(builder.BuildStation("truck_station", P(149, 158), P(149, 161)));
-        Built(builder.BuildPath("road", P(148, 160), P(80, 160)));
-        Built(builder.BuildPath("road", P(80, 160), P(54, 186)));
-        Built(builder.BuildPath("road", P(54, 186), P(53, 186)));
-        Built(builder.BuildFacility("city_truck_stop", P(50, 186), P(52, 186)));
-        // 3. Автогараж у дороги.
-        var garage = builder.BuildFacility("truck_garage", P(147, 161), P(147, 160));
-        Built(garage);
+        // 2. Автостанция завода, дорога до города, городской пункт и автогараж.
+        var garage = PrototypeRails.BuildRoads(builder);
 
         // 4. Техника и маршруты.
         StopRef Stop(string key, string network) =>
@@ -61,7 +52,7 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         transport.AssignRoute(oreTrain.Id, Stop("iron_mine", "rail"), Stop("steel_plant", "rail"));
         for (var i = 0; i < 3; i++)
         {
-            var truck = transport.Buy(garage.Built!.Id, "gaz_51", "flatbed");
+            var truck = transport.Buy(garage.Id, "gaz_51", "flatbed");
             transport.AssignRoute(truck.Id, Stop("steel_plant", "road"), Stop("city", "road"));
         }
 
@@ -99,12 +90,4 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
     /// <summary>Сумма за последние 30 закрытых суток и текущие.</summary>
     private static long Total(EconomicSite site, Func<DailyStats, IReadOnlyDictionary<Core.Ids.TypeId, Mass>> pick, string resource) =>
         site.History.Append(site.Today).Sum(d => pick(d).GetValueOrDefault(resource).Kg);
-
-    private static void Built(BuildPlan plan) =>
-        Assert.True(plan.CanBuild, string.Join("; ", plan.Problems.Select(p => $"{p.Cell}: {p.Message}")));
-
-    private static void Built(StationPlan plan) => Assert.True(plan.CanBuild, string.Join("; ", plan.Problems.Select(p => p.Message)));
-
-    private static void Built(FacilityPlan plan) =>
-        Assert.True(plan.CanBuild, string.Join("; ", plan.Problems.Select(p => $"{p.Cell}: {p.Message}")));
 }

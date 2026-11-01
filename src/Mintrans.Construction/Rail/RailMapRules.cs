@@ -15,8 +15,7 @@ internal static class RailCells
 
     /// <summary>Клетки, в которые реально заходит габарит пути (а не только касается их угла).</summary>
     public static IEnumerable<GridPos> Covered(CorridorShape corridor, WorldMap map) =>
-        corridor.TouchedCells().Where(cell => map.Contains(cell) &&
-            ShapeConflicts.Conflict(corridor, AreaShape.OfCells(new GridRect(cell.X, cell.Y, 1, 1))));
+        corridor.CoveredCells().Where(map.Contains);
 
     public static CorridorShape Corridor(RailNetwork network, TrackEdge edge) => new(edge.Geometry, network.Settings.HalfWidthM);
 
