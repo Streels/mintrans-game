@@ -66,8 +66,9 @@ internal static class RailMapSteps
     /// </summary>
     public static TrackNodeId NodeAt(RailNetwork rails, RailEdit edit, WorldPoint at, double outward, int level = 0)
     {
+        // Новый путь продолжает свободный конец: выходит из узла туда же, куда смотрит конец.
         var end = rails.FreeEnds.FirstOrDefault(e => e.At.ApproxEquals(at, 0.01) &&
-                                                     Angles.Difference(Angles.Reverse(e.Heading), outward) <= 1e-6);
+                                                     Angles.Difference(e.Heading, outward) <= 1e-6);
         if (end is not null)
             return end.Node;
         if (rails.Nearest(at, 0.01, includeBridges: false) is { } near &&

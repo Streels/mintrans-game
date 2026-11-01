@@ -70,15 +70,15 @@ public sealed class TrainBody
         var left = ExtentM;
         if (left <= SpatialScale.EpsilonM)
             yield break;
-        var top = HeadM;
-        foreach (var edge in _edges)
+        for (var i = 0; i < _edges.Count; i++)
         {
+            // Голова — в точке HeadM своего пути; пути за ней состав занимает от их конца по ходу движения.
+            var top = i == 0 ? HeadM : network.LengthOf(_edges[i]);
             var from = Math.Max(0, top - left);
-            yield return TrackSpan.Along(network, edge, from, top);
+            yield return TrackSpan.Along(network, _edges[i], from, top);
             left -= top - from;
             if (left <= SpatialScale.EpsilonM)
                 yield break;
-            top = network.LengthOf(edge);
         }
     }
 

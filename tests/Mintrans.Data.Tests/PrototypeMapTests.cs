@@ -49,7 +49,7 @@ public class PrototypeMapTests
         foreach (var b in Map.Sites.All.Where(b => b != a))
             Assert.False(NetworkQueries.AreConnected(network, a.Cells(), b.Cells()),
                 $"{a.Key} и {b.Key} уже связаны сетью {network.Type}");
-        Assert.Empty(Map.Networks["rail"].Strokes());
+        Assert.Empty(Map.RequireRails().Edges);
     }
 
     [Fact]

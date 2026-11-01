@@ -12,6 +12,7 @@ using Mintrans.Transport.Stops;
 using Mintrans.World;
 using Mintrans.World.Facilities;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Transport.Systems;
 
@@ -444,6 +445,34 @@ public static class TransportModule
     /// Почему сооружение нельзя снести с точки зрения транспорта (или null):
     /// к депо приписана техника, пункт входит в маршрут.
     /// </summary>
+    /// <summary>
+    /// Правило рельсовой сети от транспорта (docs/10в, раздел 7): нельзя снести участок пути, на котором стоит поезд
+    /// или который за ним закреплён. Деление пути стрелкой разрешено — положения поездов переезжают на части пути.
+    /// </summary>
+    public static IRailRule RailGuard(TransportState transport) => new RailTrafficGuard(transport);
+
+    private sealed class RailTrafficGuard(TransportState transport) : IRailRule
+    {
+        public IEnumerable<string> Check(RailNetwork network, RailEdit edit)
+        {
+            if (edit.RemovedEdges.Count == 0)
+                yield break;
+            foreach (var rail in transport.RailNetworks.Where(r => r.Rails == network))
+            foreach (var edge in edit.RemovedEdges)
+            {
+                var pieces = edit.PiecesOf(edge);
+                bool Removed(Rail.TrackSpan span) => !pieces.Any(p => p.OffsetM <= span.FromM + 1e-6 && p.OffsetM + p.LengthM >= span.ToM - 1e-6);
+                foreach (var index in new[] { rail.Occupancy, rail.Reservations })
+                foreach (var (span, owner) in index.On(edge))
+                    if (Removed(span) && transport.Vehicles.FirstOrDefault(v => v.Id == owner) is { } train)
+                    {
+                        yield return $"на этом пути поезд «{train.Name}» — дождитесь, пока он уедет, или остановите его в другом месте";
+                        yield break;
+                    }
+            }
+        }
+    }
+
     public static string? WhyFacilityInUse(TransportState transport, Facility facility)
     {
         if (transport.InDepot(facility.Id).Any())

@@ -1,5 +1,7 @@
 using Mintrans.Construction;
+using Mintrans.Construction.Rail;
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 using Mintrans.Economy.Runtime;
 using Mintrans.Economy.Systems;
 using Mintrans.Simulation;
@@ -8,24 +10,25 @@ using Mintrans.Transport.Stops;
 using Mintrans.Transport.Systems;
 using Mintrans.World;
 using Mintrans.World.Facilities;
-using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 using Mintrans.World.Sites;
-using Mintrans.World.Terrain;
 using static Mintrans.Transport.Tests.TestLine;
 
 namespace Mintrans.Transport.Tests;
 
 /// <summary>
-/// Однопутный коридор 64×16 для сценариев сигнализации (docs/10а), построенный инструментами игрока:
-/// шахта (2,2) со станцией (2..5, 6), завод (58,2) со станцией (58..61, 6), линия по y = 6 с мостом (35..37, 6)
-/// над поперечной линией x = 36. Западное депо (20,9) выпускает на запад, к шахте; восточное (44,9) — тоже на запад.
-/// Дорога x = 48 от автогаража (48,2) пересекает линию переездом и ведёт в город (44,10) с двумя пунктами.
-/// Сигналы и разъезды каждый сценарий ставит сам.
+/// Однопутный коридор 160×40 клеток (800 × 200 м) для сценариев сигнализации (docs/10а), построенный инструментами игрока.
+/// Шахта (4..9, 12..17) с платформой (5..8, 20) и завод (148..153, 12..17) с платформой (149..152, 20) на главном пути y = 20.
+/// Главный путь проходит мостом (76..84, 20) над поперечной линией x = 80. Западное депо (54..57, 13) — на прямом
+/// ответвлении y = 13, которое отходит от главного пути у x = 16 на восток; восточное (128..131, 27) — на ответвлении y = 27
+/// от x = 90. Из обоих депо поезда выезжают на запад. Дорога x = 140 от автогаража (140, 4) пересекает главный путь
+/// переездом и ведёт в город (134..145, 30..35) с двумя пунктами. Сигналы и разъезды каждый сценарий ставит сам.
 /// </summary>
 internal sealed class Corridor
 {
     public GameSimulation Simulation { get; }
     public WorldMap Map => Simulation.State.Map;
+    public RailNetwork Rails => Map.RequireRails();
     public EconomyState Economy { get; }
     public TransportState Transport { get; }
     public Builder Builder { get; }
@@ -33,45 +36,52 @@ internal sealed class Corridor
     public Facility EastDepot { get; }
     public Facility Garage { get; }
 
+    /// <summary>Клетка переезда дороги через главный путь.</summary>
+    public static readonly GridPos Crossing = new(140, 20);
+
     public Corridor()
     {
-        var terrain = new TerrainCatalog([new TerrainCategory("surface", [new Core.Ids.TypeId("grass")], "grass")]);
-        var map = new WorldMap(64, 16, 0, terrain,
-        [
-            new NetworkDefinition("road", EdgeNetworkLayer.LayoutName),
-            new NetworkDefinition("rail", TrackNetworkLayer.LayoutName),
-        ]);
+        var map = NewMap(160, 40);
         var placement = SitePlacement.Basic();
-        placement.Place(map, new NewSiteRequest("coal_mine", "coal_mine", "Шахта", new GridRect(2, 2, 4, 4)));
-        placement.Place(map, new NewSiteRequest("steel_plant", "steel_plant", "Завод", new GridRect(58, 2, 4, 4)));
-        placement.Place(map, new NewSiteRequest("city", "city", "Город", new GridRect(44, 10, 8, 4)));
+        placement.Place(map, new NewSiteRequest("coal_mine", "coal_mine", "Шахта", new GridRect(4, 12, 6, 6)));
+        placement.Place(map, new NewSiteRequest("steel_plant", "steel_plant", "Завод", new GridRect(148, 12, 6, 6)));
+        placement.Place(map, new NewSiteRequest("city", "city", "Город", new GridRect(134, 30, 12, 6)));
 
         Simulation = new GameSimulation(new SimulationState(map));
         Economy = EconomyModule.Install(Simulation, EconomyCatalog());
         Transport = TransportModule.Install(Simulation, TransportCatalog());
         Builder = new Builder(map, ConstructionCatalog());
         Builder.AddDemolishGuard(new DelegateDemolishGuard(f => TransportModule.WhyFacilityInUse(Transport, f)));
+        map.RequireRails().Rules.Add(TransportModule.RailGuard(Transport));
 
-        Built(Builder.BuildStation("rail_station", P(2, 6), P(5, 6)));
-        Built(Builder.BuildStation("rail_station", P(58, 6), P(61, 6)));
-        // Мост над поперечной линией: опоры ставятся на свободные клетки, путь подводится к ним сзади.
-        Built(Builder.BuildBridge("rail_bridge", P(35, 6), P(37, 6)));
-        Built(Builder.BuildPath("rail", P(6, 6), P(34, 6)));
-        Built(Builder.BuildPath("rail", P(38, 6), P(57, 6)));
-        Built(Builder.BuildPath("rail", P(36, 1), P(36, 12)));
+        Built(Builder.BuildRail(C(2, 20), C(76, 20)));
+        Built(Builder.BuildRailBridge("rail_bridge", C(76, 20), C(84, 20)));
+        Built(Builder.BuildRail(C(84, 20), C(156, 20)));
+        Built(Builder.BuildRail(C(80, 4), C(80, 36)));
+        Built(Builder.BuildPlatform("rail_station", C(5, 20), C(8, 20)));
+        Built(Builder.BuildPlatform("rail_station", C(149, 20), C(152, 20)));
 
-        WestDepot = Builder.BuildFacility("rail_depot", P(20, 9), P(20, 8)).Built!;
-        Built(Builder.BuildPath("rail", P(18, 6), P(20, 8)));
-        EastDepot = Builder.BuildFacility("rail_depot", P(44, 9), P(44, 8)).Built!;
-        Built(Builder.BuildPath("rail", P(42, 6), P(44, 8)));
+        WestDepot = Siding(16, 52, 60, 13, 54);
+        EastDepot = Siding(90, 124, 134, 27, 128);
 
-        Garage = Builder.BuildFacility("truck_garage", P(48, 2), P(48, 3)).Built!;
-        Built(Builder.BuildPath("road", P(48, 3), P(48, 12)));
-        Built(Builder.BuildFacility("city_truck_stop", P(48, 11), P(48, 11)));
-        Built(Builder.BuildFacility("city_truck_stop", P(48, 12), P(48, 12)));
+        Garage = Builder.BuildFacility("truck_garage", P(140, 4), P(140, 5)).Built!;
+        Built(Builder.BuildPath("road", P(140, 5), P(140, 33)));
+        Built(Builder.BuildFacility("city_truck_stop", P(140, 32), P(140, 32)));
+        Built(Builder.BuildFacility("city_truck_stop", P(140, 33), P(140, 33)));
     }
 
-    public static GridPos P(int x, int y) => new(x, y);
+    /// <summary>
+    /// Ответвление от главного пути у <paramref name="switchX"/> на восток к прямому участку y = <paramref name="y"/>
+    /// (<paramref name="fromX"/>..<paramref name="toX"/>) с депо от <paramref name="depotX"/>: из депо поезд выезжает на запад.
+    /// </summary>
+    private Facility Siding(int switchX, int fromX, int toX, int y, int depotX)
+    {
+        Built(Builder.BuildRail(C(fromX, y), C(toX, y)));
+        Built(Builder.BuildRail(C(switchX, 20), C(fromX, y)));
+        var plan = Builder.BuildRailDepot("rail_depot", C(depotX, y), C(depotX + 3, y));
+        Built(plan);
+        return plan.Built!;
+    }
 
     public StopRef Stop(string key) =>
         Transport.Stops.All.First(s => s.Network == "rail" && s.Owner == Map.Sites.GetByKey(key).Id).Ref;
@@ -88,20 +98,22 @@ internal sealed class Corridor
         return train;
     }
 
-    public void Signal(string kind, GridPos at, GridPos toward) => Built(Builder.BuildSignal(kind, at, toward));
+    /// <summary>Сигнал на главном пути в клетке x: протяжка к соседней клетке — односторонний в её сторону, без неё — двусторонний.</summary>
+    public void Signal(string kind, int x, int toward, int y = 20) => Built(Builder.BuildRailSignal(kind, C(x, y), C(toward, y)));
 
     /// <summary>
-    /// Разъезд: второй путь y = 7 между стрелками (26,6) и (32,6). Как принято в OpenTTD, у каждого пути разъезда
-    /// своё направление: односторонний маршрутный сигнал на восток в (31,6) и на запад в (27,7) —
-    /// навстречу им ехать нельзя, поэтому поезда сами расходятся по разным путям.
+    /// Разъезд: второй путь y = 21 (46..54) S-образными кривыми выходит на главный путь стрелками у x = 30 и x = 70.
+    /// Как принято в OpenTTD, у каждого пути разъезда своё направление: односторонний маршрутный сигнал на восток
+    /// на главном пути в x = 50 и на запад на втором пути в x = 48 — навстречу им ехать нельзя, поэтому поезда сами
+    /// расходятся по разным путям.
     /// </summary>
     public void PassingLoop()
     {
-        Built(Builder.BuildPath("rail", P(27, 7), P(31, 7)));
-        Built(Builder.BuildPath("rail", P(24, 6), P(26, 7)));
-        Built(Builder.BuildPath("rail", P(34, 6), P(32, 7)));
-        Signal("path_signal", P(31, 6), P(32, 6));
-        Signal("path_signal", P(27, 7), P(26, 7));
+        Built(Builder.BuildRail(C(46, 21), C(54, 21)));
+        Built(Builder.BuildRail(C(46, 21), C(30, 20)));
+        Built(Builder.BuildRail(C(54, 21), C(70, 20)));
+        Signal("path_signal", 50, 51);
+        Signal("path_signal", 48, 47, y: 21);
     }
 
     /// <summary>Крутить часы, пока условие не выполнится; не дольше <paramref name="limit"/> часов. Вызывает <paramref name="each"/> каждый час.</summary>

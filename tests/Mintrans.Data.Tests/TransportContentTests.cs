@@ -28,16 +28,13 @@ public class TransportContentTests
     }
 
     [Fact]
-    public void Longest_train_fits_the_longest_station()
+    public void Rail_platform_length_is_free_so_the_longest_train_can_get_a_platform()
     {
+        // Длину платформы игрок выбирает поклеточно, без верхнего предела (docs/10в, раздел 4): любой состав можно уместить.
         var content = ContentLocator.Load();
-        var maxStation = content.Construction.Stations.Where(s => s.Network == "rail").Max(s => s.MaxLength);
-        var rail = Catalog.Network("rail");
-        var wagon = Catalog.Models.Where(m => m.Role == UnitRole.Wagon).Max(m => m.Length);
-        foreach (var loco in Catalog.Models.Where(m => m.Role == UnitRole.Locomotive))
-        {
-            var cells = Math.Ceiling((loco.Length + loco.MaxWagons * wagon) / (double)rail.UnitsPerCell);
-            Assert.True(cells <= maxStation, $"{loco.Title}: состав из {loco.MaxWagons} вагонов ({cells} кл.) не влезает в станцию {maxStation} кл.");
-        }
+        var station = content.Construction.Stations.Single(s => s.Network == "rail");
+        Assert.Equal(0, station.MaxLength);
+        Assert.True(station.MaxDistanceM > 0);
+        Assert.True(station.MaxTracks > 1);
     }
 }

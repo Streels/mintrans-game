@@ -53,6 +53,21 @@ public sealed partial class TransportSystem
             vehicle.SetState(VehicleState.Travelling);
         vehicle.Reason = $"едет: {targetName}";
 
+        // Стоявший поезд (у платформы, в депо) отправляется, только закрепив путь от головы: после разворота
+        // голова может оказаться уже за концом платформы, и встроенный сигнал станции остался бы позади (docs/10а).
+        if (vehicle.CanTurn && vehicle.Body is { } standing && !rail.HoldsAhead(vehicle, standing.Head))
+        {
+            var inDepot = DepotBerth(vehicle, context) is { } depot && depot.Edge == standing.HeadEdge.Edge &&
+                          depot.Covers(rails.EdgeDistance(standing.Head), 0.01);
+            var where = inDepot ? "депо" : "станции";
+            if (rail.TryReserve(vehicle, vehicle.RailRoute!, vehicle.RailRouteIndex, standing.HeadM) is { } blocker)
+            {
+                WaitAtSignal(vehicle, new RailBoundary(standing.HeadEdge.Edge, rails.EdgeDistance(standing.Head), SignalLogic.Path,
+                    false, null, where), blocker, rail, targets, context);
+                return;
+            }
+        }
+
         vehicle.MoveBudget += vehicle.SpeedMph;
         var atNode = false;
         (TrackEdgeId Edge, double At)? cleared = null;
@@ -102,7 +117,7 @@ public sealed partial class TransportSystem
             // Граница, которую голова уже прошла проверку, не держит: ищем следующую.
             var searchFrom = cleared is { } passed && passed.Edge == edge.Edge && Math.Abs(passed.At - body.HeadM) < 1e-6
                 ? body.HeadM
-                : body.HeadM - 1e-6;
+                : body.HeadM - SpatialScale.EpsilonM;
             if (rail.BoundaryAhead(edge, searchFrom, stepEnd) is { } found)
             {
                 if (found.AtM > body.HeadM + 1e-6)
@@ -138,18 +153,27 @@ public sealed partial class TransportSystem
                 }
             }
 
-            var step = TrackSpan.Along(rails, edge, body.HeadM, stepEnd);
-            // Переезд (docs/10а): поезд ждёт машину, уже стоящую на переезде впереди.
+            // Переезд (docs/10а): поезд подъезжает к нему вплотную и ждёт машину, уже стоящую на переезде.
+            var waitingAt = false;
             foreach (var crossing in context.Map.Crossings.On(edge.Edge))
             {
-                if (!step.Overlaps(new TrackSpan(crossing.Edge, crossing.FromM, crossing.ToM), 0) ||
-                    TruckOn(crossing.Cell, context) is not { } truck)
+                var length = rails.LengthOf(edge);
+                var (a, b) = edge.Forward ? (crossing.FromM, crossing.ToM) : (length - crossing.ToM, length - crossing.FromM);
+                if (b <= body.HeadM + 1e-6 || a >= stepEnd - 1e-6 || TruckOn(crossing.Cell, context) is not { } truck)
                     continue;
+                if (a > body.HeadM + 1e-6)
+                {
+                    stepEnd = Math.Min(stepEnd, a);
+                    continue;
+                }
+                waitingAt = true;
                 vehicle.MoveBudget = 0;
                 vehicle.BlockedHours++;
                 vehicle.Reason = $"ждёт: на переезде «{truck.Name}»";
-                return;
             }
+            if (waitingAt)
+                return;
+            var step = TrackSpan.Along(rails, edge, body.HeadM, stepEnd);
             if (rail.Occupancy.ConflictWith(rails, step, vehicle.Id) is { } hit)
             {
                 Crash(vehicle, context.Transport[hit], rail, context);
@@ -221,16 +245,20 @@ public sealed partial class TransportSystem
     {
         SpeedMph = Math.Max(0.01, vehicle.SpeedMph),
         ReverseHours = context.RailRules.ReverseDelayHours,
-        EnterDelay = next => RailPassable(vehicle, rail, next, context) ? rail.EnterDelay(vehicle, next) : null,
+        EnterDelay = next => rail.EnterDelay(vehicle, next),
+        Barriers = edge => DepotBarriers(vehicle, rail, edge),
     };
 
-    /// <summary>Сквозь чужие депо поезда не ездят: в депо заезжает только своя техника на обслуживание.</summary>
-    private static bool RailPassable(Vehicle vehicle, RailTraffic rail, DirectedEdge next, Context context)
+    /// <summary>
+    /// Сквозь депо поезда не ездят (docs/10): въезд на стоянку депо — преграда, кроме своего депо, когда поезд едет
+    /// на обслуживание. Доехать до платформы перед депо на том же пути можно.
+    /// </summary>
+    private static IEnumerable<double> DepotBarriers(Vehicle vehicle, RailTraffic rail, DirectedEdge edge)
     {
-        foreach (var berth in rail.Rails.BerthsOn(next.Edge).Where(b => b.Kind == BerthKind.Depot))
+        var length = rail.Rails.LengthOf(edge);
+        foreach (var berth in rail.Rails.BerthsOn(edge.Edge).Where(b => b.Kind == BerthKind.Depot))
             if (!(vehicle.Leg == Leg.ToDepot && berth.Facility == vehicle.Depot))
-                return false;
-        return true;
+                yield return edge.Forward ? berth.FromM : length - berth.ToM;
     }
 
     /// <summary>

@@ -22,8 +22,14 @@ public sealed class TrainRouteOptions
     /// <summary>Доплата за разворот в тупике, ч.</summary>
     public double ReverseHours { get; init; }
 
-    /// <summary>Ожидаемая задержка въезда на путь, ч; null — въезд запрещён (односторонний маршрутный сигнал навстречу, чужое депо).</summary>
+    /// <summary>Ожидаемая задержка въезда на путь, ч; null — въезд запрещён (односторонний маршрутный сигнал навстречу).</summary>
     public Func<DirectedEdge, double?>? EnterDelay { get; init; }
+
+    /// <summary>
+    /// Преграды на пути по ходу движения: метры хода, дальше которых проехать нельзя (въезд в чужое депо).
+    /// До преграды доехать можно — например, к платформе перед депо, — а сквозь неё нет.
+    /// </summary>
+    public Func<DirectedEdge, IEnumerable<double>>? Barriers { get; init; }
 }
 
 /// <summary>
@@ -38,15 +44,21 @@ public static class TrainRouter
         if (targets.Count == 0)
             return null;
         var speed = Math.Max(1e-6, options.SpeedMph);
+        // Ближайшая преграда по ходу движения после точки from (в метрах хода) или бесконечность.
+        double Barrier(DirectedEdge edge, double from) =>
+            options.Barriers?.Invoke(edge).Where(b => b > from + SpatialScale.EpsilonM).DefaultIfEmpty(double.PositiveInfinity).Min()
+            ?? double.PositiveInfinity;
         TrainRoute? best = null;
-        // Цель на пути головы, впереди неё.
-        foreach (var target in targets.Where(t => t.Edge == start.Edge && t.DistanceM >= start.DistanceM - SpatialScale.EpsilonM))
+        // Цель на пути головы, впереди неё и до преграды.
+        var startBarrier = Barrier(start.Edge, start.DistanceM);
+        foreach (var target in targets.Where(t => t.Edge == start.Edge && t.DistanceM >= start.DistanceM - SpatialScale.EpsilonM &&
+                                                  t.DistanceM <= startBarrier + SpatialScale.EpsilonM))
         {
             var hours = (target.DistanceM - start.DistanceM) / speed;
             if (best is null || hours < best.Hours)
                 best = new TrainRoute([start.Edge], target.DistanceM, hours);
         }
-        var byEdge = targets.GroupBy(t => t.Edge).ToDictionary(g => g.Key, g => g.Select(t => t.DistanceM).Min());
+        var byEdge = targets.GroupBy(t => t.Edge).ToDictionary(g => g.Key, g => g.Select(t => t.DistanceM).ToList());
 
         // Цена — время до начала пути в направлении движения.
         var cost = new Dictionary<DirectedEdge, double>();
@@ -73,7 +85,8 @@ public static class TrainRouter
                 Relax(from.Reverse(), from, atEnd + options.ReverseHours);
         }
 
-        Expand(start.Edge, (network.LengthOf(start.Edge) - start.DistanceM) / speed);
+        if (double.IsPositiveInfinity(startBarrier))
+            Expand(start.Edge, (network.LengthOf(start.Edge) - start.DistanceM) / speed);
         var settled = new HashSet<DirectedEdge>();
         while (queue.TryDequeue(out var current, out var key))
         {
@@ -81,13 +94,15 @@ public static class TrainRouter
                 continue;
             if (best is not null && key.Item1 >= best.Hours)
                 break;
-            if (byEdge.TryGetValue(current, out var targetM))
+            var barrier = Barrier(current, -1);
+            if (byEdge.TryGetValue(current, out var onEdge) && onEdge.Where(t => t <= barrier + SpatialScale.EpsilonM).DefaultIfEmpty(-1).Min() is var targetM and >= 0)
             {
                 var hours = key.Item1 + targetM / speed;
                 if (best is null || hours < best.Hours)
                     best = new TrainRoute(Unwind(parent, start.Edge, current), targetM, hours);
             }
-            Expand(current, key.Item1 + network.LengthOf(current) / speed);
+            if (double.IsPositiveInfinity(barrier))
+                Expand(current, key.Item1 + network.LengthOf(current) / speed);
         }
         return best;
     }

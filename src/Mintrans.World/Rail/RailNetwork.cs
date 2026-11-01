@@ -380,7 +380,12 @@ public sealed class RailNetwork
             change.Remove(_edges[id].Spatial);
         var placed = new Dictionary<TrackEdgeId, TrackEdge>();
         foreach (var edge in edit.NewEdges)
+        {
             placed[edge.Id] = edge with { Spatial = change.Add(Settings.Kind, edge.Level, Corridor(edge.Geometry)) };
+            // Часть разделённого пути — та же, уже проверенная геометрия.
+            if (edit.IsPiece(edge.Id))
+                change.MarkVerified(placed[edge.Id].Spatial);
+        }
         TrackEdge Placed(TrackEdge e) => placed.GetValueOrDefault(e.Id) ?? e;
 
         var joints = new Dictionary<(ObjectId, ObjectId), (List<PathInterval> A, List<PathInterval> B)>();

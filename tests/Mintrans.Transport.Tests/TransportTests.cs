@@ -1,4 +1,6 @@
-using Mintrans.Transport.Routing;
+using Mintrans.Construction.Rail;
+using Mintrans.Transport.Rail;
+using Mintrans.World.Rail;
 using Mintrans.Transport.Runtime;
 using static Mintrans.Transport.Tests.TestLine;
 
@@ -8,18 +10,31 @@ namespace Mintrans.Transport.Tests;
 public class TransportTests
 {
     [Fact]
-    public void Path_goes_from_depot_through_switch_and_reverses_at_dead_end()
+    public void Path_turns_at_a_dead_end_and_runs_through_the_platform_to_its_far_end()
     {
         var line = new TestLine();
+        var rails = line.Rails;
         var plant = line.Transport.Stops.Find(line.Stop("steel_plant", "rail"))!;
-        var path = Pathfinder.Find(line.Map.Networks["rail"], new RoutePoint(line.Depot.Area.Origin, null, null),
-            plant.Area.Cells().ToHashSet(), new RouteOptions { RunThrough = true });
-
-        Assert.NotNull(path);
-        // Съезд из депо ведёт на запад, поэтому к заводу на востоке поезд приходит через разворот в тупике у шахты
+        var platform = rails.Berth(plant.Berths.Single());
+        var targets = new[]
+        {
+            new TrackPosition(new DirectedEdge(platform.Edge, true), platform.ToM),
+            new TrackPosition(new DirectedEdge(platform.Edge, false), rails.Edge(platform.Edge).LengthM - platform.FromM),
+        };
+        // Из депо на запад — к тупику: к заводу на востоке поезд приходит через разворот в тупике
         // и проезжает станцию завода до дальнего (восточного) конца.
-        Assert.Equal(P(53, 6), path[^1].Cell);
-        Assert.Contains(path, p => p.IsReversal && p.Cell.X <= 5);
+        var depot = line.Builder.DepotBerth(line.Depot.Id)!;
+        var west = new DirectedEdge(depot.Edge, false);
+        var route = TrainRouter.Find(rails, new TrackPosition(west, rails.LengthOf(west) - depot.FromM), targets,
+            new TrainRouteOptions { SpeedMph = 20, ReverseHours = 2 });
+
+        Assert.NotNull(route);
+        Assert.Contains(Enumerable.Range(0, route!.Edges.Count), i => route.ReversesAfter(i));
+        var end = rails.Locate(new TrackPosition(route.Edges[^1], route.TargetM)).At;
+        Assert.Equal(C(123, 20).X + 2.5, end.X, 3);
+        // А на восток — сразу, без разворота.
+        var east = TrainRouter.Find(rails, new TrackPosition(west.Reverse(), depot.ToM), targets, new TrainRouteOptions { SpeedMph = 20, ReverseHours = 2 });
+        Assert.DoesNotContain(Enumerable.Range(0, east!.Edges.Count), i => east.ReversesAfter(i));
     }
 
     [Fact]
@@ -44,7 +59,7 @@ public class TransportTests
         // docs/10, docs/12: состав длиннее платформы обслуживается, но медленнее; перестановки нет.
         var line = new TestLine();
         line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
-        var train = line.Train(gondolas: 10); // платформа 4 клетки = 8 вагонов: у платформы 80 % состава
+        var train = line.Train(gondolas: 15); // платформа 6 клеток = 12 вагонов: у платформы 80 % состава
         var mine = line.Stop("coal_mine", "rail");
         Assert.Empty(line.Transport.CheckRoute(train.Id, mine, line.Stop("steel_plant", "rail")));
         line.Transport.AssignRoute(train.Id, mine, line.Stop("steel_plant", "rail"));
@@ -60,10 +75,10 @@ public class TransportTests
                 reasons.Add(train.Reason);
             }
         }
-        Assert.Equal(T(600), train.Cargo);
+        Assert.Equal(T(900), train.Cargo);
         Assert.Contains(reasons, r => r.Contains("медленнее: у платформы 80"));
-        // 600 т при 80 т/ч вместо 100 т/ч — восемь часов вместо шести.
-        Assert.True(loadingHours >= 8, $"погрузка заняла {loadingHours} ч");
+        // 900 т при 80 т/ч вместо 100 т/ч — двенадцать часов вместо девяти.
+        Assert.True(loadingHours >= 11, $"погрузка заняла {loadingHours} ч");
     }
 
     [Fact]
@@ -72,7 +87,7 @@ public class TransportTests
         var line = new TestLine();
         var mine = line.Transport.Stops.Find(line.Stop("coal_mine", "rail"))!;
         var plant = line.Transport.Stops.Find(line.Stop("steel_plant", "rail"))!;
-        Assert.Equal((2, 4), (mine.Slots, mine.Length));
+        Assert.Equal((2, 6), (mine.Slots, mine.Length));
         Assert.Equal((1, 4), (plant.Slots, plant.Length));
     }
 
@@ -132,11 +147,11 @@ public class TransportTests
     public void Station_serves_vehicles_in_arrival_order_and_others_wait_in_queue()
     {
         // docs/10, docs/12: больше техники, чем пункт успевает обработать, — очередь в порядке прибытия.
-        // Второй поезд идёт за первым по блочным сигналам и встаёт на второй путь станции шахты.
-        var line = new TestLine();
+        // Второй поезд выезжает из депо за первым, как только тот освободит стрелку, и встаёт на второй путь станции шахты.
+        var line = new TestLine(mineHandlingTonnes: 50);
         line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
-        var early = line.Train(gondolas: 7); // 420 т — грузится пять часов при 100 т/ч
-        var late = line.Train(gondolas: 7);
+        var early = line.Train(gondolas: 5); // 300 т
+        var late = line.Train(gondolas: 11); // 660 т — грузится больше тринадцати часов при 50 т/ч
         var mine = line.Stop("coal_mine", "rail");
         var plant = line.Stop("steel_plant", "rail");
         // Второй купленный поезд выезжает на час раньше — значит, и обслуживаться должен первым.
@@ -154,9 +169,9 @@ public class TransportTests
         // Поезда стоят на разных путях станции: у пункта два места (docs/10).
         Assert.NotEqual(late.Position.Y, early.Position.Y);
         RunUntil(line, () => late.State != VehicleState.Loading);
-        Assert.Equal(T(420), late.Cargo);
+        Assert.Equal(T(660), late.Cargo);
         RunUntil(line, () => early.State != VehicleState.Loading);
-        Assert.Equal(T(420), early.Cargo);
+        Assert.Equal(T(300), early.Cargo);
         line.AssertConserved();
     }
 
@@ -235,16 +250,24 @@ public class TransportTests
     public void Broken_track_stops_train_with_reason_and_rebuilding_restores_it()
     {
         var line = new TestLine();
+        line.Economy.Seed(line.Site("coal_mine").Site, "coal", T(1000));
         var train = line.Train();
         line.Transport.AssignRoute(train.Id, line.Stop("coal_mine", "rail"), line.Stop("steel_plant", "rail"));
-        line.RunHours(2);
+        RunUntil(line, () => train.Leg == Leg.ToB && train.State == VehicleState.Travelling && train.Position.X >= 60);
 
-        Assert.True(line.Builder.Demolish(P(10, 6), P(10, 6)).CanBuild);
+        // Путь впереди закреплён за поездом — его не снести (docs/10в, раздел 7).
+        Assert.Contains(line.Builder.PlanDemolish(P(90, 20), P(90, 20)).Problems, p => p.Message.Contains("поезд"));
+        // Остановленный поезд отпускает путь впереди: разрез на перегоне между шахтой и заводом.
+        line.Transport.Stop(train.Id);
+        Assert.True(line.Builder.Demolish(P(90, 20), P(90, 20)).CanBuild);
+        line.Transport.Resume(train.Id);
         line.RunHours(3);
         Assert.Equal(VehicleState.Stuck, train.State);
         Assert.Contains("нет пути", train.Reason);
 
-        Assert.True(line.Builder.BuildPath("rail", P(9, 6), P(11, 6)).CanBuild);
+        var gap = line.Rails.FreeEnds.Where(e => e.At.X is > 445 and < 460).OrderBy(e => e.At.X).ToList();
+        Assert.Equal(2, gap.Count);
+        Built(line.Builder.RailTool!.Preview(new FreeEndAnchor(gap[0].Node), new FreeEndAnchor(gap[1].Node)).Confirm());
         line.RunHours(1);
         Assert.Equal(VehicleState.Travelling, train.State);
     }
@@ -254,7 +277,8 @@ public class TransportTests
     {
         var line = new TestLine();
         line.Train();
-        var plan = line.Builder.PlanDemolish(line.Depot.Area.Origin, line.Depot.Area.Origin);
+        var cell = line.Depot.Cells.First();
+        var plan = line.Builder.PlanDemolish(cell, cell);
         Assert.Contains(plan.Problems, p => p.Code == "guarded");
     }
 

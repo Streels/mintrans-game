@@ -3,6 +3,7 @@ using Mintrans.Data.Json;
 using Mintrans.Data.Maps;
 using Mintrans.World;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Data.Tests;
 
@@ -61,24 +62,49 @@ public class MapLoaderTests
     }
 
     [Fact]
-    public void Diagonal_line_becomes_staircase_of_corner_pieces()
+    public void Diagonal_road_becomes_staircase_of_cells()
     {
         var map = Load($$"""
-            { {{Header}} "networks": [ { "op": "line", "network": "rail", "points": [[0, 0], [4, 0], [8, 4]] } ] }
+            { {{Header}} "networks": [ { "op": "line", "network": "road", "points": [[0, 0], [4, 0], [8, 4]] } ] }
             """).Map;
-        var rail = (TrackNetworkLayer)map.Networks["rail"];
+        var road = map.Networks["road"];
+        Assert.True(road.Connects(new GridPos(2, 0), Direction.West, Direction.East));
+        Assert.True(NetworkQueries.AreConnected(road, [new GridPos(0, 0)], [new GridPos(8, 4)]));
+    }
 
-        Assert.Equal(TrackPieces.EastWest, rail.PiecesAt(new GridPos(2, 0)));
-        Assert.Equal(TrackPieces.SouthWest, rail.PiecesAt(new GridPos(5, 0)));
-        Assert.Equal(TrackPieces.NorthEast, rail.PiecesAt(new GridPos(5, 1)));
-        Assert.True(NetworkQueries.AreConnected(rail, [new GridPos(0, 0)], [new GridPos(8, 4)]));
+    [Fact]
+    public void Rail_polyline_gets_rounded_corners_and_joins_existing_ends()
+    {
+        var map = Load($$"""
+            { "format": 1, "id": "t", "name": "t", "size": [400, 200], "networks": [
+              { "op": "rail", "points": [[10, 20], [150, 20], [150, 180]], "radius": 300 },
+              { "op": "rail", "points": [[150, 180], [150, 195]] },
+              { "op": "rail_signal", "kind": "block_signal", "logic": "block", "at": [60, 20], "toward": "east" }
+            ] }
+            """).Map;
+        var rails = map.RequireRails();
+        var curved = rails.Edges.First();
+        Assert.Contains(curved.Geometry.Primitives, p => p is Core.Geometry.ArcPrimitive { Radius: 300 });
+        // Вторая линия продолжила первую в её конце: свободных концов два, узел-стык между ними.
+        Assert.Equal(2, rails.FreeEnds.Count());
+        Assert.Equal(SignalFacing.Forward, rails.Signals.Single().Facing);
+    }
+
+    [Fact]
+    public void Rail_with_a_too_sharp_corner_is_reported_with_location()
+    {
+        var error = Assert.Throws<ContentException>(() => Load($$"""
+            { {{Header}} "networks": [ { "op": "rail", "points": [[1, 1], [10, 1], [10, 10]], "radius": 300 } ] }
+            """));
+        Assert.Contains("networks[0]", error.Message);
+        Assert.Contains("не помещается", error.Message);
     }
 
     [Fact]
     public void Line_not_at_45_degrees_is_rejected()
     {
         var error = Assert.Throws<ContentException>(() => Load($$"""
-            { {{Header}} "networks": [ { "op": "line", "network": "rail", "points": [[0, 0], [5, 2]] } ] }
+            { {{Header}} "networks": [ { "op": "line", "network": "road", "points": [[0, 0], [5, 2]] } ] }
             """));
         Assert.Contains("networks[0]", error.Message);
     }

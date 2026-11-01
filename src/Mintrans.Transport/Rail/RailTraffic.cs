@@ -336,7 +336,8 @@ public sealed class RailTraffic
 
     /// <summary>
     /// Закрыт ли переезд в клетке для машин (docs/10а): на нём или за ним закреплён путь поезда, стоит поезд
-    /// или поезд по маршруту подходит ближе чем на <see cref="RailTrafficRules.CrossingCloseCells"/> клеток.
+    /// или поезд по маршруту подходит ближе чем на <see cref="RailTrafficRules.CrossingCloseCells"/> клеток
+    /// (или чем проходит за игровой час, если это больше).
     /// </summary>
     public bool IsCrossingClosed(GridPos cell)
     {
@@ -349,9 +350,10 @@ public sealed class RailTraffic
             if (Occupancy.Any(span) || Reservations.Any(span))
                 return true;
         }
-        var ahead = _transport.Catalog.Rail.CrossingCloseCells * SpatialScale.CellM;
+        // Подходящий поезд закрывает переезд заранее: не ближе заданного числа клеток и не меньше, чем он проходит за час.
+        var close = _transport.Catalog.Rail.CrossingCloseCells * SpatialScale.CellM;
         foreach (var train in Trains().Where(t => t.State == VehicleState.Travelling && t.Body is not null && t.RailRoute is not null))
-            foreach (var span in Ahead(train, ahead))
+            foreach (var span in Ahead(train, Math.Max(close, train.SpeedMph)))
                 if (crossings.Any(c => span.Overlaps(new TrackSpan(c.Edge, c.FromM, c.ToM), 0)))
                     return true;
         return false;

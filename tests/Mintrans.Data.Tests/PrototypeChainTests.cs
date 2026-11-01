@@ -32,29 +32,15 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         var transport = TransportModule.Install(simulation, content.Transport);
         var builder = new Builder(map, content.Construction);
 
-        // 1. Станции предприятий и городской пункт на улице.
-        Built(builder.BuildStation("rail_station", P(200, 48), P(207, 48)));
-        Built(builder.BuildStation("rail_station", P(62, 50), P(69, 50)));
-        Built(builder.BuildStation("rail_station", P(150, 149), P(163, 149)));
+        // 1. Железная дорога: линии, платформы станций и депо (docs/10в).
+        var (coalDepot, oreDepot) = PrototypeRails.Build(builder);
+        // 2. Автостанция завода, дорога до города и городской пункт на улице.
         Built(builder.BuildStation("truck_station", P(149, 158), P(149, 161)));
-        // 2. Железные дороги и дорога до города.
-        Built(builder.BuildPath("rail", P(208, 48), P(208, 140)));
-        Built(builder.BuildPath("rail", P(208, 140), P(200, 149)));
-        Built(builder.BuildPath("rail", P(200, 149), P(164, 149)));
-        Built(builder.BuildPath("rail", P(61, 50), P(61, 100)));
-        Built(builder.BuildPath("rail", P(61, 100), P(110, 149)));
-        Built(builder.BuildPath("rail", P(110, 149), P(149, 149)));
         Built(builder.BuildPath("road", P(148, 160), P(80, 160)));
         Built(builder.BuildPath("road", P(80, 160), P(54, 186)));
         Built(builder.BuildPath("road", P(54, 186), P(53, 186)));
         Built(builder.BuildFacility("city_truck_stop", P(50, 186), P(52, 186)));
-        // 3. Депо со съездом на линию в обе стороны (треугольником) и автогараж у дороги.
-        // Съезд только в одну сторону заставил бы рудный поезд разворачиваться на угольной ветке,
-        // и на однопутной линии поезда заперли бы друг друга (docs/10а).
-        var depot = builder.BuildFacility("rail_depot", P(180, 152), P(180, 151));
-        Built(depot);
-        Built(builder.BuildPath("rail", P(178, 149), P(180, 151)));
-        Built(builder.BuildPath("rail", P(182, 149), P(180, 151)));
+        // 3. Автогараж у дороги.
         var garage = builder.BuildFacility("truck_garage", P(147, 161), P(147, 160));
         Built(garage);
 
@@ -62,16 +48,16 @@ public class PrototypeChainTests(Xunit.Abstractions.ITestOutputHelper output)
         StopRef Stop(string key, string network) =>
             transport.Stops.All.First(s => s.Network == network && s.Owner == map.Sites.GetByKey(key).Id).Ref;
         // Стартовая пара прототипа (docs/11b): паровоз Л с 12 полувагонами и ГАЗ-51 с бортовым кузовом.
-        Vehicle Train()
+        Vehicle Train(World.Facilities.Facility depot)
         {
-            var train = transport.Buy(depot.Built!.Id, "steam_l");
+            var train = transport.Buy(depot.Id, "steam_l");
             for (var i = 0; i < 12; i++)
                 transport.AddWagon(train.Id, "gondola");
             return train;
         }
-        var coalTrain = Train();
+        var coalTrain = Train(coalDepot);
         transport.AssignRoute(coalTrain.Id, Stop("coal_mine", "rail"), Stop("steel_plant", "rail"));
-        var oreTrain = Train();
+        var oreTrain = Train(oreDepot);
         transport.AssignRoute(oreTrain.Id, Stop("iron_mine", "rail"), Stop("steel_plant", "rail"));
         for (var i = 0; i < 3; i++)
         {

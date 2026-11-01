@@ -246,7 +246,10 @@ public sealed partial class Builder
                 $"{definition.Title}: на прямой путь, протяните в сторону депо");
         var (edge, a, b, _) = found;
         var segment = new PathGeometry(new StraightPrimitive(edge.Geometry.PointAt(a), edge.Geometry.PointAt(b)));
-        var cells = RailCells.Covered(new CorridorShape(segment, Rails.Settings.HalfWidthM), _map).ToList();
+        // Клетки депо — под самой стоянкой: коридор укорочен на полуширину, чтобы не задеть соседние клетки торцами.
+        var inset = Math.Min(Rails.Settings.HalfWidthM, (b - a) / 2 - SpatialScale.EpsilonM);
+        var core = new PathGeometry(new StraightPrimitive(edge.Geometry.PointAt(a + inset), edge.Geometry.PointAt(b - inset)));
+        var cells = RailCells.Covered(new CorridorShape(core, Rails.Settings.HalfWidthM), _map).ToList();
         var problems = new List<BuildProblem>();
         foreach (var cell in cells)
         {
