@@ -2,6 +2,7 @@ using Mintrans.Construction;
 using Mintrans.Core.Grid;
 using Mintrans.World;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Game.UI;
 
@@ -26,26 +27,30 @@ public static class CellDescriber
                 yield return $"Над клеткой: {names[over.Kind.Value]}";
             if (!network.HasAny(cell))
                 continue;
-            // Дорога: «С, В» — куда выходит; рельсы: «С–Ю, З–С» — уложенные куски.
+            // Дорога: «С, В» — куда выходит.
             var strokes = network.StrokesAt(cell).Select(s => s.From is { } from
                 ? $"{names[from.ToString()]}–{names[s.To.ToString()]}"
                 : names[s.To.ToString()]);
-            var kind = network is TrackNetworkLayer rails
-                ? rails.PiecesAt(cell).IsJunction() ? " (стрелка)" : rails.PiecesAt(cell).IsCrossing() ? " (крест)" : ""
-                : "";
-            yield return $"{names[network.Type.Value]}: {string.Join(", ", strokes)}{kind}";
+            yield return $"{names[network.Type.Value]}: {string.Join(", ", strokes)}";
             if (network.BridgeAt(cell) is { } bridge)
                 yield return $"Опора моста: {names[bridge.Kind.Value]}, {bridge.Length} кл.";
-            if (network is TrackNetworkLayer track)
-            {
-                foreach (var signal in track.SignalsAt(cell))
-                {
-                    var sides = string.Join(", ", signal.Faces.Enumerate().Select(s => names[s.ToString()]));
-                    yield return $"{names[signal.Kind.Value]}: {(signal.TwoWay ? "двусторонний" : $"в сторону {sides}")}";
-                }
-            }
         }
-        if (NetworkShapes.IsLevelCrossing(map, cell))
+
+        if (map.Rails is { } rails)
+        {
+            foreach (var level in new[] { 0, 1 })
+            foreach (var edge in RailCellQuery.EdgesIn(map, cell, level))
+            {
+                var kind = rails.IsBridge(edge) ? "мост" : edge.Geometry.IsStraight ? "прямая" : "кривая";
+                var radius = edge.Geometry.Primitives.OfType<Core.Geometry.ArcPrimitive>().Select(a => a.Radius).DefaultIfEmpty(0).Min();
+                var curve = radius > 0 ? $", R {radius:0} м" : "";
+                var junction = rails.JunctionAt(edge.From) is not null || rails.JunctionAt(edge.To) is not null ? ", у стрелки" : "";
+                yield return $"{names[rails.Settings.Kind.Value]}: {kind}{curve}, {edge.LengthM:0} м{junction}";
+            }
+            foreach (var signal in rails.Signals.Where(s => rails.CellOf(s) == cell))
+                yield return $"{names[signal.Kind.Value]}: {(signal.TwoWay ? "двусторонний" : "односторонний")}";
+        }
+        if (map.Crossings.IsCrossing(cell))
             yield return "Переезд";
 
         if (map.Facilities.At(cell) is { } facility)

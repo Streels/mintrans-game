@@ -58,7 +58,11 @@ public partial class Main : Node2D
 
         if (args.UiDemo is { } demo && _map is not null && _simulation is { } simulation)
         {
-            var scenario = new UiScenario { ScreenshotPath = args.Screenshot };
+            var scenario = new UiScenario
+            {
+                ScreenshotPath = args.Screenshot,
+                Report = () => _transport?.Vehicles.Select(v => $"{v.Name}: {v.State}, {v.Reason}, груз {v.Cargo}") ?? [],
+            };
             AddChild(scenario);
             scenario.Init(_map, _projection, demo, simulation.Run, () => _transport?.Vehicles
                 .Where(v => v.Network.Trains && v.State is VehicleState.Travelling or VehicleState.Loading or VehicleState.Unloading)
@@ -153,9 +157,13 @@ public partial class Main : Node2D
         // Строительство: правила — в ядре (Builder), здесь только ввод мышью и подсветка.
         var builder = new Builder(map, content.Construction);
         builder.AddDemolishGuard(new DelegateDemolishGuard(f => TransportModule.WhyFacilityInUse(transport, f)));
+        // Путь под поездом и закреплённый за ним участок не сносятся (docs/10в, раздел 7).
+        map.Rails?.Rules.Add(TransportModule.RailGuard(transport));
         var build = new BuildController { Name = "Build" };
         AddChild(build);
         build.Init(map, _projection);
+        // Пока выбирается радиус соединения рельсов, колесо мыши меняет радиус, а не масштаб.
+        _camera.InputCaptured = () => build.CapturesWheel;
         // Щелчок без инструмента: выбор пункта маршрута или открытие депо.
         build.CellClicked += cell =>
         {

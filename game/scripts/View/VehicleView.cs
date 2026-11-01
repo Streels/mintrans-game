@@ -4,14 +4,18 @@ using Mintrans.Simulation.Time;
 using Mintrans.Transport.Definitions;
 using Mintrans.Transport.Routing;
 using Mintrans.Transport.Runtime;
+using Mintrans.Core.Spatial;
+using Mintrans.Transport.Rail;
 using Mintrans.World;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Game.View;
 
 /// <summary>
-/// Техника на карте. Поезд — вагоны из набора изометрических спрайтов (docs/18), выставленные вдоль рельсов
-/// по длине каждой единицы состава; без набора или по клавише V — толстая линия по занятым клеткам.
-/// Грузовик — маленький ромб. Между игровыми часами голова плавно сдвигается к следующей клетке; на расчёты это не влияет.
+/// Техника на карте. Поезд — вагоны из набора изометрических спрайтов (docs/18), выставленные вдоль рельсов в метрах
+/// (docs/10в, раздел 6): положение каждого вагона — по непрерывной дистанции вдоль путей, ракурс — ближайший из 16
+/// к хорде между его концами. Без набора или по клавише V — толстая линия по путям под составом. Грузовик — маленький ромб.
+/// Между игровыми часами голова плавно продвигается по маршруту; на расчёты это не влияет.
 /// Цвет (линии или огонька над головой поезда) показывает состояние: едет, грузится, стоит; разбитый состав темнеет.
 /// На мосту техника рисуется на высоте настила.
 /// </summary>
@@ -105,10 +109,17 @@ public partial class VehicleView : Node2D
 
     private void DrawTrainLine(Vehicle vehicle, Color color)
     {
-        var path = Path(vehicle);
-        var points = path.Points.Take(path.HeadIndex + 1).Select(Project).Append(Project(path.Front)).Reverse().ToArray();
-        DrawPolyline(points, Outline, 7f);
-        DrawPolyline(points, color, 4f);
+        if (TrackOf(vehicle) is not { } track)
+            return;
+        var points = new List<Vector2>();
+        for (var d = track.Front; d >= track.Front - track.Length - 1e-6; d -= RailLines.StepM)
+            points.Add(Project(track.At(d)));
+        points.Add(Project(track.At(track.Front - track.Length)));
+        if (points.Count < 2)
+            return;
+        var zoom = Math.Max(0.05f, GetCanvasTransform().Scale.X);
+        DrawPolyline(points.ToArray(), Outline, Math.Max(7f, 3f / zoom));
+        DrawPolyline(points.ToArray(), color, Math.Max(4f, 2f / zoom));
         DrawCircle(points[0], 4.5f, new Color(0.15f, 0.15f, 0.18f));
     }
 
@@ -119,14 +130,19 @@ public partial class VehicleView : Node2D
     /// <summary>
     /// Вагоны состава от головы к хвосту. Вагон набора длиной <see cref="MapStyle.TrainCarCells"/> клетки покрывает
     /// столько условных единиц длины состава, сколько их помещается в эту длину, — так нарисованный состав
-    /// занимает столько же клеток, сколько в расчёте занятости пути. Первый вагон — головной, дальше прицепные
+    /// занимает столько же метров, сколько в расчёте занятости пути. Первый вагон — головной, дальше прицепные
     /// и моторные через один; у состава из трёх и более вагонов последний — головной, развёрнутый назад, как у электропоезда.
     /// </summary>
     private List<CarSprite> PlaceCars(Vehicle vehicle, TrainSprites sprites)
     {
+        if (TrackOf(vehicle) is not { } track)
+            return [];
         var carCells = _style.TrainCarCells;
+        var carM = carCells * SpatialScale.CellM;
         var units = vehicle.Units.Sum(u => Math.Max(1, u.Model.Length));
         var count = Math.Max(1, (int)Math.Ceiling(units / (carCells * Math.Max(1, vehicle.Network.UnitsPerCell)) - 1e-6));
+        // Состав, ещё выходящий из депо, показываем только той частью, что уже на путях.
+        count = Math.Max(1, Math.Min(count, (int)Math.Ceiling(track.Length / carM - 1e-6)));
         var parts = new List<(string Part, bool Reversed)>(count);
         for (var i = 0; i < count; i++)
         {
@@ -137,26 +153,117 @@ public partial class VehicleView : Node2D
             parts[^1] = ("head", true);
 
         var scale = (float)(_projection.TileWidth / 2f / (sprites.PitchMetres * Math.Sqrt(0.5) * sprites.PixelsPerMetre) * carCells);
-        var path = Path(vehicle);
         var modulate = vehicle.State == VehicleState.Crashed ? new Color(0.35f, 0.3f, 0.28f) : Colors.White;
 
         var result = new List<CarSprite>(parts.Count);
         for (var i = 0; i < parts.Count; i++)
         {
-            var center = path.FrontDistance - (i + 0.5f) * carCells;
-            var front = path.Sample(center + carCells / 2);
-            var back = path.Sample(center - carCells / 2);
-            var direction = new Vector2(front.X - back.X, front.Y - back.Y);
+            var center = track.Front - (i + 0.5) * carM;
+            var front = track.At(center + carM / 2);
+            var back = track.At(center - carM / 2);
+            // Ракурс по хорде между сцепками, в координатах сетки (x — на восток, y — на юг).
+            var direction = new Vector2((float)(front.X - back.X), (float)(front.Y - back.Y));
             if (direction.LengthSquared() < 1e-6f)
-                direction = path.Heading;
+                direction = new Vector2(1, 0);
             if (parts[i].Reversed)
                 direction = -direction;
-            result.Add(new CarSprite(Project(path.Sample(center)), sprites.Frame(parts[i].Part, direction), scale, modulate));
+            result.Add(new CarSprite(Project(track.At(center)), sprites.Frame(parts[i].Part, direction), scale, modulate));
         }
         return result;
     }
 
-    // ---------- Путь состава ----------
+    // ---------- Положение поезда на путях ----------
+
+    private readonly record struct TrackPointH(double X, double Y, float Height);
+
+    /// <summary>
+    /// Пути под составом и маршрут впереди как одна линия по дистанции: 0 — голова по расчёту, отрицательные — к хвосту,
+    /// положительные — вперёд по маршруту. <see cref="Front"/> — где голова сейчас на экране (с долей часа),
+    /// <see cref="Length"/> — сколько метров состава на путях.
+    /// </summary>
+    private sealed class RailTrack(List<(DirectedEdge Edge, double From, double To, float? Deck)> pieces, double origin, double front, double length,
+        RailNetwork rails, WorldMap map)
+    {
+        public double Front { get; } = front;
+        public double Length { get; } = length;
+
+        public TrackPointH At(double d)
+        {
+            // Пройти по кусочкам от хвоста: origin — дистанция начала первого кусочка относительно головы.
+            var left = d - origin;
+            foreach (var (edge, from, to, deck) in pieces)
+            {
+                var span = to - from;
+                if (left <= span)
+                {
+                    var along = from + Math.Clamp(left, 0, span);
+                    var position = new TrackPosition(edge, along);
+                    var (at, _) = rails.Locate(position);
+                    var geometry = rails.Edge(edge.Edge).Geometry;
+                    return new TrackPointH(at.X, at.Y, RailLines.Height(map, geometry, rails.EdgeDistance(position), deck));
+                }
+                left -= span;
+            }
+            var last = pieces[^1];
+            var end = new TrackPosition(last.Edge, last.To);
+            var (point, _) = rails.Locate(end);
+            return new TrackPointH(point.X, point.Y, RailLines.Height(map, rails.Edge(last.Edge.Edge).Geometry, rails.EdgeDistance(end), last.Deck));
+        }
+    }
+
+    private RailTrack? TrackOf(Vehicle vehicle)
+    {
+        if (vehicle.Body is not { } body || _map.Rails is not { } rails)
+            return null;
+        var lift = _style.Rail.LiftLevels;
+        float? Deck(DirectedEdge edge) => RailLines.DeckOf(_map, rails, rails.Edge(edge.Edge), lift);
+
+        // Хвост → голова: пути состава в обратном порядке, на каждом — от точки хвоста до конца по ходу движения.
+        var pieces = new List<(DirectedEdge, double, double, float?)>();
+        var behind = new List<(DirectedEdge, double, double, float?)>();
+        var left = body.ExtentM;
+        for (var i = 0; i < body.Edges.Count && left > 1e-6; i++)
+        {
+            var edge = body.Edges[i];
+            var top = i == 0 ? body.HeadM : rails.LengthOf(edge);
+            var from = Math.Max(0, top - left);
+            behind.Add((edge, from, top, Deck(edge)));
+            left -= top - from;
+        }
+        behind.Reverse();
+        pieces.AddRange(behind);
+        if (pieces.Count == 0)
+            pieces.Add((body.HeadEdge, body.HeadM, body.HeadM, Deck(body.HeadEdge)));
+        var onTrack = pieces.Sum(p => p.Item3 - p.Item2);
+
+        // Вперёд по маршруту — столько, сколько голова пройдёт до конца часа; дальше разворота — нет.
+        var moving = vehicle.State == VehicleState.Travelling && vehicle.BlockedHours == 0;
+        var ahead = 0.0;
+        if (moving && vehicle.RailRoute is { } route)
+        {
+            var budget = vehicle.SpeedMph + 1;
+            var from = body.HeadM;
+            for (var i = vehicle.RailRouteIndex; i < route.Edges.Count && ahead < budget; i++)
+            {
+                var edge = route.Edges[i];
+                var end = i == route.Edges.Count - 1 ? route.TargetM : rails.LengthOf(edge);
+                var to = Math.Min(end, from + budget - ahead);
+                if (to > from)
+                    pieces.Add((edge, from, to, Deck(edge)));
+                ahead += Math.Max(0, to - from);
+                if (route.ReversesAfter(i))
+                    break;
+                from = 0;
+            }
+        }
+        var progress = moving ? Math.Min(ahead, _runner.HourProgress * vehicle.SpeedMph) : 0;
+        return new RailTrack(pieces.Select(p => (p.Item1, p.Item2, p.Item3, p.Item4)).ToList(), -onTrack, progress, onTrack, rails, _map);
+    }
+
+    private Vector2 Project(TrackPointH point) =>
+        _projection.World(new WorldPoint(point.X, point.Y), point.Height);
+
+    // ---------- Путь грузовика по клеткам ----------
 
     /// <summary>
     /// Ломаная, по которой стоит состав, в координатах сетки (x, y) с высотой (z), — ровно по нарисованным рельсам:

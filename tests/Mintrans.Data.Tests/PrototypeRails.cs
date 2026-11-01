@@ -36,6 +36,10 @@ internal static class PrototypeRails
         Built(coal);
         var ore = builder.BuildRailDepot("rail_depot", C(73, 52), C(76, 52));
         Built(ore);
+        // Маршрутные сигналы на концах заводской прямой: общий участок у завода — отдельный блок,
+        // и поезд одной линии не держит его, пока едет по своей петле (docs/10а).
+        Built(builder.BuildRailSignal("path_signal", C(122, 147), C(122, 147)));
+        Built(builder.BuildRailSignal("path_signal", C(168, 147), C(168, 147)));
         return (coal.Built!, ore.Built!);
     }
 

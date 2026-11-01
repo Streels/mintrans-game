@@ -1,15 +1,16 @@
 using Godot;
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 using Mintrans.World;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Game.View;
 
 /// <summary>
-/// Транспортные сети. Каждая клетка рисуется своими отрезками: от центра к стороне (дорога)
-/// или от стороны к стороне (кусок рельсов). Угловые куски дают диагональ, как в OpenTTD.
-/// Мосты — настил над рельефом от опоры до опоры, с опорами под пролётом (docs/10б).
-/// Отрисовка не зависит от раскладки сети — только от <see cref="NetworkStroke"/> и мостов.
+/// Транспортные сети. Дороги — по клеткам: отрезки от центра клетки к стороне, мосты дорог — настил над рельефом.
+/// Рельсы — ломаные по точной метрической геометрии путей (прямые и дуги, docs/10в), мосты рельсов — путь на высоте
+/// настила с опорами под пролётом; платформы станций — светлая полоса вдоль пути со стороны предприятия.
 /// </summary>
 public partial class NetworkView : Node2D
 {
@@ -17,6 +18,8 @@ public partial class NetworkView : Node2D
     private IsoProjection _projection = null!;
     private MapStyle _style = null!;
     private readonly Dictionary<NetworkLayer, Vector2[]> _lines = new();
+    private readonly List<(Vector2[] Points, bool Bridge, Vector2[] Piers)> _rails = new();
+    private readonly List<Vector2[]> _platforms = new();
     private int _builtRevision = -1;
 
     public void Init(WorldMap map, IsoProjection projection, MapStyle style)
@@ -47,6 +50,23 @@ public partial class NetworkView : Node2D
             foreach (var bridge in layer.Bridges)
                 DrawBridge(bridge, _style.NetworkFor(layer.Type));
         }
+        if (_map.Rails is not { } rails)
+            return;
+        var rail = _style.Rail;
+        var line = _style.NetworkFor(rails.Settings.Kind);
+        foreach (var platform in _platforms)
+            DrawPolyline(platform, rail.Platform, line.Width + 3f);
+        foreach (var (points, bridge, piers) in _rails)
+        {
+            if (bridge)
+            {
+                for (var i = 0; i + 1 < piers.Length; i += 2)
+                    DrawLine(piers[i], piers[i + 1], rail.BridgePier, 3f);
+                DrawPolyline(points, rail.BridgeEdge, line.Width + 6f);
+                DrawPolyline(points, rail.BridgeDeck, line.Width + 3f);
+            }
+            DrawPolyline(points, line.Color, line.Width);
+        }
     }
 
     /// <summary>Настил с пандусами от центров опор, опоры под каждой клеткой пролёта, полотно сети сверху.</summary>
@@ -72,7 +92,7 @@ public partial class NetworkView : Node2D
         DrawPolyline(line, network.Color, network.Width);
     }
 
-    private int Revision() => _map.Networks.Layers.Sum(l => l.Revision);
+    private int Revision() => _map.Networks.Layers.Sum(l => l.Revision) * 31 + (_map.Rails?.Revision ?? 0);
 
     private void Rebuild()
     {
@@ -83,8 +103,48 @@ public partial class NetworkView : Node2D
                 .SelectMany(s => new[] { Anchor(s.Cell, s.From), Anchor(s.Cell, s.To) })
                 .ToArray();
         }
+        _rails.Clear();
+        _platforms.Clear();
+        if (_map.Rails is { } rails)
+        {
+            var lift = _style.Rail.LiftLevels;
+            foreach (var edge in rails.Edges)
+            {
+                var deck = RailLines.DeckOf(_map, rails, edge, lift);
+                var piers = new List<Vector2>();
+                if (deck is { } top)
+                {
+                    // Опоры через клетку под пролётом.
+                    for (var s = SpatialScale.CellM; s < edge.LengthM - SpatialScale.CellM / 2; s += SpatialScale.CellM)
+                    {
+                        var at = edge.Geometry.PointAt(s);
+                        piers.Add(_projection.World(at, RailLines.Ground(_map, at)));
+                        piers.Add(_projection.World(at, top));
+                    }
+                }
+                _rails.Add((RailLines.Points(edge.Geometry, _map, _projection, deck), deck is not null, piers.ToArray()));
+            }
+            foreach (var berth in rails.Berths.Where(b => b.Kind == BerthKind.Platform))
+                _platforms.Add(Platform(rails, berth));
+        }
         _builtRevision = Revision();
         QueueRedraw();
+    }
+
+    /// <summary>Полоса платформы: вдоль пути, в 3 м от оси со стороны предприятия.</summary>
+    private Vector2[] Platform(RailNetwork rails, RailBerth berth)
+    {
+        var geometry = rails.Edge(berth.Edge).Geometry;
+        var (a, b) = (geometry.PointAt(berth.FromM), geometry.PointAt(berth.ToM));
+        var normal = (b - a).Normalized().Perpendicular(+1);
+        if (_map.Sites.All.FirstOrDefault(s => s.Id == berth.Site) is { } site)
+        {
+            var center = SpatialScale.CellCenter(site.Base.Center);
+            if ((center - a).Dot(normal) < 0)
+                normal = -normal;
+        }
+        var offset = normal * 3.0;
+        return [_projection.World(a + offset, RailLines.Ground(_map, a)), _projection.World(b + offset, RailLines.Ground(_map, b))];
     }
 
     /// <summary>Центр клетки (side = null) или середина её стороны.</summary>
@@ -98,7 +158,7 @@ public partial class NetworkView : Node2D
     }
 }
 
-/// <summary>Высота настила моста для отрисовки: на <c>lift</c> уровней выше самой высокой клетки под ним.</summary>
+/// <summary>Высота настила моста дороги для отрисовки: на <c>lift</c> уровней выше самой высокой клетки под ним.</summary>
 public static class Bridges
 {
     public static float DeckHeight(WorldMap map, Bridge bridge, int lift)

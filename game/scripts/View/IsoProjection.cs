@@ -1,5 +1,6 @@
 using Godot;
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 
 namespace Mintrans.Game.View;
 
@@ -20,6 +21,24 @@ public sealed class IsoProjection(float tileWidth, float tileHeight, float heigh
         new((gx - gy) * TileWidth / 2f, (gx + gy) * TileHeight / 2f - height * HeightStep);
 
     public Vector2 CellCenter(GridPos cell, float height) => GridPoint(cell.X + 0.5f, cell.Y + 0.5f, height);
+
+    /// <summary>Точка мира в метрах (docs/02в) на экране: клетка — 5 м, сетка привязана к мировым координатам.</summary>
+    public Vector2 World(WorldPoint p, float height) =>
+        GridPoint((float)(p.X / SpatialScale.CellM), (float)(p.Y / SpatialScale.CellM), height);
+
+    /// <summary>
+    /// Точка мира под точкой экрана: высота меняет положение на экране, поэтому уточняется по высоте найденной клетки.
+    /// Null — за пределами карты.
+    /// </summary>
+    public WorldPoint? ScreenToWorld(Vector2 screen, GridRect bounds, Func<GridPos, int> heightAt)
+    {
+        if (ScreenToCell(screen, bounds, heightAt) is not { } cell)
+            return null;
+        var height = heightAt(cell);
+        var a = screen.X / (TileWidth / 2f);
+        var b = (screen.Y + height * HeightStep) / (TileHeight / 2f);
+        return new WorldPoint((a + b) / 2f * SpatialScale.CellM, (b - a) / 2f * SpatialScale.CellM);
+    }
 
     /// <summary>Углы клетки по часовой: верхний, правый, нижний, левый.</summary>
     public (Vector2 Top, Vector2 Right, Vector2 Bottom, Vector2 Left) CellCorners(GridPos cell, float height) =>

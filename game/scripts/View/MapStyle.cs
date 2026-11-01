@@ -12,11 +12,11 @@ public sealed record LineStyle(Color Color, float Width);
 
 public sealed record SiteStyle(Color Fill, Color Outline);
 
-/// <summary>Мосты, сигналы, переезды и обломки (docs/10а, docs/10б). <see cref="LiftLevels"/> — насколько настил моста выше рельефа.</summary>
+/// <summary>Мосты, сигналы, переезды, обломки и платформы (docs/10а, docs/10б, docs/10в). <see cref="LiftLevels"/> — насколько настил моста выше рельефа.</summary>
 public sealed record RailStyle(
     Color BridgeDeck, Color BridgeEdge, Color BridgePier, int LiftLevels,
     Color SignalPost, Color SignalGreen, Color SignalRed,
-    Color CrossingOpen, Color CrossingClosed, Color Wreck);
+    Color CrossingOpen, Color CrossingClosed, Color Wreck, Color Platform);
 
 /// <summary>
 /// Внешний вид карты из game/styles/map_style.json. Только оформление: на правила игры не влияет.
@@ -87,7 +87,8 @@ public sealed class MapStyle
             Rail = new RailStyle(
                 Parse(rail.Get("bridgeDeck")), Parse(rail.Get("bridgeEdge")), Parse(rail.Get("bridgePier")), rail.Int("liftLevels"),
                 Parse(rail.Get("signalPost")), Parse(rail.Get("signalGreen")), Parse(rail.Get("signalRed")),
-                Parse(rail.Get("crossingOpen")), Parse(rail.Get("crossingClosed")), Parse(rail.Get("wreck"))),
+                Parse(rail.Get("crossingOpen")), Parse(rail.Get("crossingClosed")), Parse(rail.Get("wreck")),
+                rail.Find("platform") is { } platform ? Parse(platform) : new Color(0.85f, 0.8f, 0.7f)),
             TrainSprites = root.Find("trains")?.Find("sprites")?.AsString(),
             TrainCarCells = (float)(root.Find("trains")?.Find("carCells")?.AsDouble() ?? 0.5),
         };

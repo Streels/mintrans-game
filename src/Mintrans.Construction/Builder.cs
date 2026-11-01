@@ -438,7 +438,7 @@ public sealed partial class Builder
         new(Math.Min(a.X, b.X), Math.Min(a.Y, b.Y), Math.Abs(a.X - b.X) + 1, Math.Abs(a.Y - b.Y) + 1);
 
     /// <summary>Сообщение ядра для игрока: с заглавной буквы и с точкой.</summary>
-    internal static string Sentence(string issue)
+    public static string Sentence(string issue)
     {
         if (issue.Length == 0)
             return issue;

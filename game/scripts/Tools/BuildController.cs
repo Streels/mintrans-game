@@ -1,5 +1,6 @@
 using Godot;
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 using Mintrans.Game.View;
 using Mintrans.World;
 
@@ -7,18 +8,22 @@ namespace Mintrans.Game.Tools;
 
 /// <summary>
 /// Ввод строительства: левая кнопка — начать протяжку, отпустить — построить. Esc — выйти из инструмента.
-/// Пока кнопка зажата, клетки будущей стройки подсвечиваются: зелёные — можно, красные — мешают.
+/// Пока кнопка зажата, клетки будущей стройки подсвечиваются: зелёные — можно, красные — мешают; оси будущих путей
+/// рисуются линией. Рельсы «А→Б» после протяжки ждут подтверждения (docs/10в): колесо мыши — радиус (а не масштаб карты),
+/// Tab — вариант, щелчок — построить, Esc или правая кнопка — отменить.
 /// </summary>
 public partial class BuildController : Node2D
 {
     private static readonly Color Good = new(0.35f, 0.9f, 0.4f, 0.45f);
     private static readonly Color Blocked = new(0.95f, 0.65f, 0.2f, 0.4f);
     private static readonly Color Bad = new(1f, 0.25f, 0.2f, 0.6f);
+    private static readonly Color AxisGood = new(0.2f, 1f, 0.35f, 0.95f);
+    private static readonly Color AxisBad = new(1f, 0.3f, 0.2f, 0.95f);
 
     private WorldMap _map = null!;
     private IsoProjection _projection = null!;
-    private GridPos? _dragFrom;
-    private GridPos? _hover;
+    private BuildPoint? _dragFrom;
+    private BuildPoint? _hover;
     private ToolPreview? _preview;
     private Vector2? _lastMouse;
 
@@ -30,6 +35,9 @@ public partial class BuildController : Node2D
     /// <summary>Инструмент сменился (в том числе на «нет инструмента»).</summary>
     public event Action<IBuildTool?>? ToolChanged;
 
+    /// <summary>Колесо мыши занято предпросмотром радиуса — камера его не трогает.</summary>
+    public bool CapturesWheel => Tool is IPendingTool { HasPending: true };
+
     public void Init(WorldMap map, IsoProjection projection)
     {
         _map = map;
@@ -38,25 +46,30 @@ public partial class BuildController : Node2D
 
     public void SetTool(IBuildTool? tool)
     {
+        (Tool as IPendingTool)?.Cancel();
         Tool = tool;
         _dragFrom = null;
         UpdatePreview();
         ToolChanged?.Invoke(tool);
     }
 
-    /// <summary>Клетка под курсором берётся из событий мыши — так ввод одинаков для мыши и сценариев проверки.</summary>
+    /// <summary>Точка под курсором берётся из событий мыши — так ввод одинаков для мыши и сценариев проверки.</summary>
     private void TrackHover(Vector2 viewportPosition)
     {
         _lastMouse = viewportPosition;
         var world = GetCanvasTransform().AffineInverse() * viewportPosition;
-        var cell = _projection.ScreenToCell(world, _map.Bounds, c => _map.Terrain.Height[c]);
-        if (cell == _hover)
+        Func<GridPos, int> height = c => _map.Terrain.Height[c];
+        var point = _projection.ScreenToWorld(world, _map.Bounds, height) is { } at
+            ? new BuildPoint(SpatialScale.ToCell(at), at)
+            : (BuildPoint?)null;
+        if (point == _hover)
             return;
-        _hover = cell;
-        UpdatePreview();
+        _hover = point;
+        if (Tool is not IPendingTool { HasPending: true })
+            UpdatePreview();
     }
 
-    /// <summary>Камера могла сдвинуться без движения мыши — пересчитать клетку под курсором.</summary>
+    /// <summary>Камера могла сдвинуться без движения мыши — пересчитать точку под курсором.</summary>
     public override void _Process(double delta)
     {
         if (_lastMouse is { } mouse)
@@ -65,13 +78,43 @@ public partial class BuildController : Node2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        var pending = Tool as IPendingTool;
         switch (@event)
         {
             case InputEventMouseMotion motion:
                 TrackHover(motion.Position);
                 break;
+            case InputEventKey { Keycode: Key.Escape, Pressed: true } when pending is { HasPending: true }:
+                pending.Cancel();
+                StatusChanged?.Invoke("Отменено.");
+                UpdatePreview();
+                GetViewport().SetInputAsHandled();
+                break;
             case InputEventKey { Keycode: Key.Escape, Pressed: true } when Tool is not null:
                 SetTool(null);
+                GetViewport().SetInputAsHandled();
+                break;
+            case InputEventKey { Keycode: Key.Tab, Pressed: true } when pending is { HasPending: true }:
+                pending.NextVariant();
+                ShowPending(pending);
+                GetViewport().SetInputAsHandled();
+                break;
+            case InputEventMouseButton { ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown, Pressed: true } wheel
+                when pending is { HasPending: true }:
+                pending.Scroll(wheel.ButtonIndex == MouseButton.WheelUp ? 1 : -1);
+                ShowPending(pending);
+                GetViewport().SetInputAsHandled();
+                break;
+            case InputEventMouseButton { ButtonIndex: MouseButton.Right, Pressed: true } when pending is { HasPending: true }:
+                pending.Cancel();
+                StatusChanged?.Invoke("Отменено.");
+                UpdatePreview();
+                GetViewport().SetInputAsHandled();
+                break;
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } when pending is { HasPending: true }:
+                var result = pending.Confirm();
+                StatusChanged?.Invoke(result.CanBuild ? "Построено. " + result.Message : "Не построено: " + result.Message);
+                UpdatePreview();
                 GetViewport().SetInputAsHandled();
                 break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left } button when Tool is not null:
@@ -80,14 +123,15 @@ public partial class BuildController : Node2D
                     _dragFrom = start;
                 else if (!button.Pressed && _dragFrom is { } from)
                     Commit(from, _hover ?? from);
-                UpdatePreview();
+                if (Tool is not IPendingTool { HasPending: true })
+                    UpdatePreview();
                 GetViewport().SetInputAsHandled();
                 break;
             case InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: false } click when Tool is null:
                 // Без инструмента щелчок — выбор: депо, пункт для маршрута и т. п.
                 TrackHover(click.Position);
                 if (_hover is { } cell)
-                    CellClicked?.Invoke(cell);
+                    CellClicked?.Invoke(cell.Cell);
                 break;
         }
     }
@@ -95,15 +139,33 @@ public partial class BuildController : Node2D
     /// <summary>Щелчок по клетке без выбранного инструмента.</summary>
     public event Action<GridPos>? CellClicked;
 
-    private void Commit(GridPos from, GridPos to)
+    private void Commit(BuildPoint from, BuildPoint to)
     {
         _dragFrom = null;
         var result = Tool!.Apply(from, to);
+        if (Tool is IPendingTool { HasPending: true } pending)
+        {
+            ShowPending(pending);
+            return;
+        }
         StatusChanged?.Invoke(result.CanBuild ? "Построено. " + result.Message : "Не построено: " + result.Message);
+    }
+
+    private void ShowPending(IPendingTool pending)
+    {
+        _preview = pending.PendingPreview;
+        if (_preview is not null)
+            StatusChanged?.Invoke(_preview.Message);
+        QueueRedraw();
     }
 
     private void UpdatePreview()
     {
+        if (Tool is IPendingTool { HasPending: true } pending)
+        {
+            ShowPending(pending);
+            return;
+        }
         _preview = Tool is not null && _hover is { } hover ? Tool.Preview(_dragFrom ?? hover, hover) : null;
         if (_preview is not null && _dragFrom is not null)
             StatusChanged?.Invoke(_preview.Message);
@@ -121,6 +183,13 @@ public partial class BuildController : Node2D
             var color = _preview.BadCells.Contains(cell) ? Bad : _preview.CanBuild ? Good : Blocked;
             var (top, right, bottom, left) = _projection.CellCorners(cell, _map.Terrain.Height[cell]);
             DrawColoredPolygon([top, right, bottom, left], color);
+        }
+        var zoom = Math.Max(0.05f, GetCanvasTransform().Scale.X);
+        foreach (var shape in _preview.Shapes)
+        {
+            var points = RailLines.Points(shape, _map, _projection, 0);
+            if (points.Length >= 2)
+                DrawPolyline(points, _preview.CanBuild ? AxisGood : AxisBad, 3f / zoom);
         }
     }
 }

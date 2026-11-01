@@ -17,6 +17,11 @@ public partial class MapCamera : Camera2D
 
     private bool _dragging;
 
+    /// <summary>
+    /// Колесо и правая кнопка заняты другим вводом (предпросмотр радиуса рельсов, docs/10в): камера их пропускает.
+    /// </summary>
+    public Func<bool>? InputCaptured { get; set; }
+
     public override void _Process(double delta)
     {
         var move = Vector2.Zero;
@@ -30,6 +35,11 @@ public partial class MapCamera : Camera2D
 
     public override void _UnhandledInput(InputEvent @event)
     {
+        if (InputCaptured?.Invoke() == true && @event is InputEventMouseButton
+            {
+                ButtonIndex: MouseButton.WheelUp or MouseButton.WheelDown or MouseButton.Right,
+            })
+            return;
         switch (@event)
         {
             case InputEventMouseButton { ButtonIndex: MouseButton.WheelUp, Pressed: true } wheel:

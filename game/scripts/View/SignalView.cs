@@ -1,16 +1,15 @@
 using Godot;
-using Mintrans.Construction;
-using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 using Mintrans.Transport.Runtime;
 using Mintrans.World;
-using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Game.View;
 
 /// <summary>
-/// Сигналы и переезды (docs/10а). Сигнал — огонь у края клетки, в сторону которой он регулирует движение,
-/// справа по ходу поезда: зелёный — путь открыт, красный — закрыт; у блочного огонь круглый, у маршрутного — квадратный.
-/// Переезд — шлагбаумы по обе стороны пути: белые — открыт, красные — закрыт поездом.
+/// Сигналы и переезды (docs/10а, docs/10в). Сигнал — огонь в его точке на пути, чуть впереди по ходу регулируемого
+/// направления и правее: зелёный — путь открыт, красный — закрыт; у блочного огонь круглый, у маршрутного — квадратный.
+/// У двустороннего — по огню в каждую сторону. Переезд — шлагбаумы по обе стороны пути: белые — открыт, красные — закрыт.
 /// Состояние берётся из транспорта и обновляется раз в игровой час.
 /// </summary>
 public partial class SignalView : Node2D
@@ -19,8 +18,6 @@ public partial class SignalView : Node2D
     private IsoProjection _projection = null!;
     private MapStyle _style = null!;
     private TransportState _transport = null!;
-    private readonly List<GridPos> _crossings = new();
-    private int _crossingsRevision = -1;
 
     public void Init(WorldMap map, IsoProjection projection, MapStyle style, TransportState transport)
     {
@@ -33,80 +30,67 @@ public partial class SignalView : Node2D
     /// <summary>Перерисовать после игрового часа или стройки.</summary>
     public void Refresh() => QueueRedraw();
 
+    private int _drawnRevision = -1;
+
     public override void _Process(double delta)
     {
-        if (CrossingsRevision() != _crossingsRevision)
+        var revision = (_map.Rails?.Revision ?? 0) * 31 + _map.Networks.Layers.Sum(l => l.Revision);
+        if (revision != _drawnRevision)
         {
-            FindCrossings();
+            _drawnRevision = revision;
             QueueRedraw();
         }
     }
 
     public override void _Draw()
     {
+        if (_map.Rails is not { } rails)
+            return;
         var style = _style.Rail;
-        foreach (var rail in _transport.RailNetworks)
+        var traffic = _transport.RailNetworks.FirstOrDefault(r => r.Rails == rails);
+        foreach (var signal in rails.Signals)
         {
-            foreach (var signal in rail.Layer.Signals)
+            var geometry = rails.Edge(signal.Edge).Geometry;
+            foreach (var forward in new[] { true, false }.Where(signal.Controls))
             {
-                foreach (var side in signal.Faces.Enumerate())
+                var heading = WorldPoint.FromAngle(geometry.HeadingAt(signal.DistanceM)) * (forward ? 1 : -1);
+                // Огонь — на 1,5 м впереди по ходу и на 2,5 м правее (правее — к +Y от направления движения).
+                var at = geometry.PointAt(signal.DistanceM) + heading * 1.5 + heading.Perpendicular(+1) * 2.5;
+                var point = _projection.World(at, RailLines.Ground(_map, at));
+                var color = traffic?.IsGreen(signal, forward) == true ? style.SignalGreen : style.SignalRed;
+                if (signal.Logic == SignalLogic.Block)
                 {
-                    var at = SignalPoint(signal.Cell, side);
-                    var color = rail.IsGreen(signal, side) ? style.SignalGreen : style.SignalRed;
-                    if (signal.Logic == SignalLogic.Block)
-                    {
-                        DrawCircle(at, 3.6f, style.SignalPost);
-                        DrawCircle(at, 2.4f, color);
-                    }
-                    else
-                    {
-                        DrawRect(new Rect2(at - new Vector2(3.6f, 3.6f), new Vector2(7.2f, 7.2f)), style.SignalPost);
-                        DrawRect(new Rect2(at - new Vector2(2.3f, 2.3f), new Vector2(4.6f, 4.6f)), color);
-                    }
+                    DrawCircle(point, 3.6f, style.SignalPost);
+                    DrawCircle(point, 2.4f, color);
+                }
+                else
+                {
+                    DrawRect(new Rect2(point - new Vector2(3.6f, 3.6f), new Vector2(7.2f, 7.2f)), style.SignalPost);
+                    DrawRect(new Rect2(point - new Vector2(2.3f, 2.3f), new Vector2(4.6f, 4.6f)), color);
                 }
             }
         }
-        foreach (var cell in _crossings)
-            DrawCrossing(cell, _transport.IsCrossingClosed(cell) ? style.CrossingClosed : style.CrossingOpen);
+        foreach (var crossing in _map.Crossings.All)
+            DrawCrossing(rails, crossing, _transport.IsCrossingClosed(crossing.Cell) ? style.CrossingClosed : style.CrossingOpen);
     }
 
-    /// <summary>Точка огня: ближе к выезду через сторону <paramref name="side"/> и правее по ходу движения.</summary>
-    private Vector2 SignalPoint(GridPos cell, Direction side)
+    /// <summary>Шлагбаумы — по обе стороны пути, вдоль дороги поперёк неё.</summary>
+    private void DrawCrossing(RailNetwork rails, RailCrossing crossing, Color color)
     {
-        var (dx, dy) = side.Offset();
-        var (rx, ry) = ((Direction)(((int)side + 1) % Directions.Count)).Offset();
-        return _projection.GridPoint(cell.X + 0.5f + dx * 0.32f + rx * 0.3f, cell.Y + 0.5f + dy * 0.32f + ry * 0.3f,
-            _map.Terrain.Height[cell]);
-    }
-
-    /// <summary>Шлагбаумы — по обе стороны пути, поперёк дороги.</summary>
-    private void DrawCrossing(GridPos cell, Color color)
-    {
-        var height = _map.Terrain.Height[cell];
-        var railAlongY = _map.Networks.Layers.OfType<TrackNetworkLayer>().Any(l => (l.PiecesAt(cell) & TrackPieces.NorthSouth) != 0);
-        foreach (var offset in new[] { -0.36f, 0.36f })
+        var geometry = rails.Edge(crossing.Edge).Geometry;
+        var middle = (crossing.FromM + crossing.ToM) / 2;
+        var center = geometry.PointAt(middle);
+        var road = crossing.RoadAlongY ? new WorldPoint(0, 1) : new WorldPoint(1, 0);
+        var across = road.Perpendicular(+1);
+        var height = RailLines.Ground(_map, center);
+        foreach (var side in new[] { -1, 1 })
         {
-            var (a, b) = railAlongY
-                ? (_projection.GridPoint(cell.X + 0.5f + offset, cell.Y + 0.2f, height), _projection.GridPoint(cell.X + 0.5f + offset, cell.Y + 0.8f, height))
-                : (_projection.GridPoint(cell.X + 0.2f, cell.Y + 0.5f + offset, height), _projection.GridPoint(cell.X + 0.8f, cell.Y + 0.5f + offset, height));
-            DrawLine(a, b, _style.Rail.SignalPost, 4f);
-            DrawLine(a, b, color, 2f);
+            // Шлагбаум стоит на дороге за габаритом пути и перекрывает её поперёк.
+            var gate = center + road * (side * 3.2);
+            var (a, b) = (gate - across * 2.0, gate + across * 2.0);
+            var (pa, pb) = (_projection.World(a, height), _projection.World(b, height));
+            DrawLine(pa, pb, _style.Rail.SignalPost, 4f);
+            DrawLine(pa, pb, color, 2f);
         }
-    }
-
-    private int CrossingsRevision() => _map.Networks.Layers.Sum(l => l.Revision);
-
-    private void FindCrossings()
-    {
-        _crossings.Clear();
-        var rails = _map.Networks.Layers.OfType<TrackNetworkLayer>().ToList();
-        for (var y = 0; y < _map.Height; y++)
-        for (var x = 0; x < _map.Width; x++)
-        {
-            var cell = new GridPos(x, y);
-            if (rails.Any(r => r.HasAny(cell)) && NetworkShapes.IsLevelCrossing(_map, cell))
-                _crossings.Add(cell);
-        }
-        _crossingsRevision = CrossingsRevision();
     }
 }
