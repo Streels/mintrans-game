@@ -50,7 +50,7 @@ public partial class SiteView : Node2D
         _drawnRevision = _map.Sites.Revision;
     }
 
-    /// <summary>Стороны клеток площадки, за которыми уже не площадка.</summary>
+    /// <summary>Стороны клеток площадки, за которыми уже не площадка; стороны на одной прямой слиты в один отрезок.</summary>
     private Vector2[] Outline(Site site, int height)
     {
         var points = new List<Vector2>();
@@ -71,7 +71,7 @@ public partial class SiteView : Node2D
                 points.Add(_projection.GridPoint(b.Item1, b.Item2, height));
             }
         }
-        return points.ToArray();
+        return Segments.MergeStraight(points.ToArray());
     }
 
     /// <summary>Высота, на которой рисуется объект: по углу его базовой области.</summary>

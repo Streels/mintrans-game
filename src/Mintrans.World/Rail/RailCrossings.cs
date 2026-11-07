@@ -66,9 +66,10 @@ public sealed class RailCrossings(WorldMap map)
                 if (!ShapeConflicts.Conflict(corridor, AreaShape.OfCells(new GridRect(cell.X, cell.Y, 1, 1))))
                     continue;
                 var (from, to) = (double.PositiveInfinity, double.NegativeInfinity);
+                var reach = square.Expand(rails.Settings.HalfWidthM);
                 foreach (var seg in edge.Geometry.Flat)
-                    if (Distances.SegmentRect(seg.A, seg.B, square) < rails.Settings.HalfWidthM)
-                        (from, to) = (Math.Min(from, seg.FromS), Math.Max(to, seg.ToS));
+                    if (Clip(seg.A, seg.B, reach) is var (t0, t1))
+                        (from, to) = (Math.Min(from, seg.FromS + (seg.ToS - seg.FromS) * t0), Math.Max(to, seg.FromS + (seg.ToS - seg.FromS) * t1));
                 var alongY = map.Networks.Layers.Select(l => RoadAxis(l.EdgesAt(cell))).FirstOrDefault(a => a is not null) ?? false;
                 var crossing = new RailCrossing(cell, edge.Id, Math.Max(0, from), Math.Min(edge.LengthM, to), alongY);
                 _all.Add(crossing);
@@ -84,6 +85,33 @@ public sealed class RailCrossings(WorldMap map)
         if (!index.TryGetValue(key, out var list))
             index[key] = list = [];
         list.Add(crossing);
+    }
+
+    /// <summary>Доли отрезка внутри прямоугольника (Лианг — Барски) или null.</summary>
+    internal static (double, double)? Clip(WorldPoint a, WorldPoint b, WorldBounds r)
+    {
+        double t0 = 0, t1 = 1;
+        var d = b - a;
+        bool Edge(double p, double q)
+        {
+            if (Math.Abs(p) < 1e-12)
+                return q >= 0;
+            var t = q / p;
+            if (p < 0)
+            {
+                if (t > t1) return false;
+                if (t > t0) t0 = t;
+            }
+            else
+            {
+                if (t < t0) return false;
+                if (t < t1) t1 = t;
+            }
+            return true;
+        }
+        return Edge(-d.X, a.X - r.MinX) && Edge(d.X, r.MaxX - a.X) && Edge(-d.Y, a.Y - r.MinY) && Edge(d.Y, r.MaxY - a.Y) && t1 > t0
+            ? (t0, t1)
+            : null;
     }
 
     /// <summary>Прямая дорога в клетке: true — с севера на юг, false — с запада на восток, null — не прямая.</summary>

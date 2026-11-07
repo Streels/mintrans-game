@@ -108,9 +108,9 @@ public partial class NetworkView : Node2D
         _lines.Clear();
         foreach (var layer in _map.Networks.Layers)
         {
-            _lines[layer] = layer.Strokes()
+            _lines[layer] = Segments.MergeStraight(layer.Strokes()
                 .SelectMany(s => new[] { Anchor(s.Cell, s.From), Anchor(s.Cell, s.To) })
-                .ToArray();
+                .ToArray());
         }
         _rails.Clear();
         _platforms.Clear();

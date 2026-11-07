@@ -16,6 +16,12 @@ public static class RailLines
     /// <summary>Шаг точек ломаной вдоль пути, м: дуги выглядят гладкими, а высота следует за рельефом.</summary>
     public const double StepM = 2.5;
 
+    /// <summary>
+    /// Насколько упрощённая ломаная может отойти от точной, единиц мира на экране (при наибольшем масштабе камеры, 32×, —
+    /// около пикселя). Прямая по ровному месту становится одним отрезком: 2 000 км путей — не миллион точек (docs/02в, раздел 11).
+    /// </summary>
+    public const float ToleranceUnits = 0.03f;
+
     /// <summary>Ломаная оси на экране; <paramref name="deck"/> — высота настила моста или null для пути на земле.</summary>
     public static Vector2[] Points(PathGeometry axis, WorldMap map, IsoProjection projection, float? deck)
     {
@@ -26,7 +32,36 @@ public static class RailLines
             var s = axis.Length * i / count;
             points[i] = projection.World(axis.PointAt(s), Height(map, axis, s, deck));
         }
-        return points;
+        return Simplify(points, ToleranceUnits);
+    }
+
+    /// <summary>Упрощение ломаной (Рамер — Дуглас — Пекер): выбрасывает точки, отходящие от хорды меньше чем на <paramref name="tolerance"/>.</summary>
+    public static Vector2[] Simplify(Vector2[] points, float tolerance)
+    {
+        if (points.Length < 3)
+            return points;
+        var keep = new bool[points.Length];
+        keep[0] = keep[^1] = true;
+        var stack = new Stack<(int From, int To)>();
+        stack.Push((0, points.Length - 1));
+        while (stack.Count > 0)
+        {
+            var (from, to) = stack.Pop();
+            var (a, b) = (points[from], points[to]);
+            var (worst, at) = (tolerance, -1);
+            for (var i = from + 1; i < to; i++)
+            {
+                var distance = Geometry2D.GetClosestPointToSegment(points[i], a, b).DistanceTo(points[i]);
+                if (distance > worst)
+                    (worst, at) = (distance, i);
+            }
+            if (at < 0)
+                continue;
+            keep[at] = true;
+            stack.Push((from, at));
+            stack.Push((at, to));
+        }
+        return points.Where((_, i) => keep[i]).ToArray();
     }
 
     /// <summary>Высота точки пути для отрисовки: рельеф или настил моста с пандусом в пределах клетки у опоры.</summary>

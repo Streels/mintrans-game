@@ -26,8 +26,17 @@ public sealed class PathGeometry
     /// <summary>Допуск ломаной, приближающей дуги при проверке клеток и коллизий, м.</summary>
     public const double FlattenToleranceM = 0.001;
 
-    /// <summary>Наибольшая длина отрезка такой ломаной, м: от неё зависит шаг конфликтных зон.</summary>
+    /// <summary>Наибольшая длина отрезка такой ломаной у концов пути, м: от неё зависит шаг зон стрелок и стыков.</summary>
     public const double FlattenSegmentM = 1.0;
+
+    /// <summary>
+    /// На каком расстоянии от концов пути ломаная мелкая, м. Зоны стрелок и стыков лежат у узлов и короче этого;
+    /// дальше от концов отрезки длиннее — длинный путь не держит десятки тысяч метровых отрезков.
+    /// </summary>
+    public const double FineEndsM = 300.0;
+
+    /// <summary>Наибольшая длина отрезка ломаной вдали от концов пути, м.</summary>
+    public const double CoarseSegmentM = 25.0;
 
     private readonly double[] _starts;
     private IReadOnlyList<FlatSegment>? _flat;
@@ -121,25 +130,43 @@ public sealed class PathGeometry
     /// <summary>Тот же путь в обратную сторону.</summary>
     public PathGeometry Reversed() => new(Primitives.Reverse().Select(p => p.Reversed()).ToList());
 
-    /// <summary>Ломаная с допуском <see cref="FlattenToleranceM"/> и шагом не больше <see cref="FlattenSegmentM"/>.</summary>
+    /// <summary>
+    /// Ломаная с допуском <see cref="FlattenToleranceM"/>: у концов пути (<see cref="FineEndsM"/>) отрезки не длиннее
+    /// <see cref="FlattenSegmentM"/>, в середине — не длиннее <see cref="CoarseSegmentM"/>.
+    /// </summary>
     public IReadOnlyList<FlatSegment> Flat => _flat ??= BuildFlat();
 
     private List<FlatSegment> BuildFlat()
     {
         var segments = new List<FlatSegment>();
+        var ranges = Length > 2 * FineEndsM
+            ? new[] { (0.0, FineEndsM, FlattenSegmentM), (FineEndsM, Length - FineEndsM, CoarseSegmentM), (Length - FineEndsM, Length, FlattenSegmentM) }
+            : [(0.0, Length, FlattenSegmentM)];
+        foreach (var (from, to, step) in ranges)
         for (var i = 0; i < Primitives.Count; i++)
         {
-            var primitive = Primitives[i];
-            var points = primitive.Flatten(FlattenToleranceM, FlattenSegmentM).ToList();
             var start = _starts[i];
+            var (a, b) = (Math.Max(from, start), Math.Min(to, start + Primitives[i].Length));
+            if (b - a <= SpatialScale.EpsilonM)
+                continue;
+            var piece = Sub(Primitives[i], a - start, b - start);
+            var points = piece.Flatten(FlattenToleranceM, step).ToList();
             for (var k = 1; k < points.Count; k++)
-            {
-                var from = start + primitive.Length * (k - 1) / (points.Count - 1);
-                var to = start + primitive.Length * k / (points.Count - 1);
-                segments.Add(new FlatSegment(points[k - 1], points[k], from, to));
-            }
+                segments.Add(new FlatSegment(points[k - 1], points[k],
+                    a + (b - a) * (k - 1) / (points.Count - 1), a + (b - a) * k / (points.Count - 1)));
         }
         return segments;
+    }
+
+    /// <summary>Часть примитива от <paramref name="from"/> до <paramref name="to"/> метров его длины.</summary>
+    private static PathPrimitive Sub(PathPrimitive primitive, double from, double to)
+    {
+        var piece = primitive;
+        if (from > SpatialScale.EpsilonM)
+            piece = piece.Split(from).After;
+        if (to - from < piece.Length - SpatialScale.EpsilonM)
+            piece = piece.Split(to - from).Before;
+        return piece;
     }
 
     /// <summary>Наименьшее расстояние от точки до оси пути.</summary>

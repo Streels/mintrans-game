@@ -162,8 +162,8 @@ public sealed class RailInCellRule(ConstructionCatalog catalog) : INetworkCellRu
     private static bool Covers(TrackEdge edge, RailBerth berth, GridPos cell, double halfWidth)
     {
         var square = SpatialScale.CellBounds(cell);
-        return edge.Geometry.Flat.Any(seg => seg.ToS > berth.FromM && seg.FromS < berth.ToM &&
-                                            Distances.SegmentRect(seg.A, seg.B, square) < halfWidth);
+        var (a, b) = (edge.Geometry.PointAt(berth.FromM), edge.Geometry.PointAt(berth.ToM));
+        return Distances.SegmentRect(a, b, square) < halfWidth;
     }
 }
 
