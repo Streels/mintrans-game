@@ -1,6 +1,6 @@
 using Mintrans.Construction.Rail;
 using Mintrans.Core.Ids;
-using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Construction;
 
@@ -15,16 +15,18 @@ public sealed record NetworkBuildDefinition(
     IReadOnlyList<TypeId> AllowedParts);
 
 /// <summary>
-/// Вид грузовой станции (docs/10): прямоугольник клеток вплотную к предприятию, становится частью его площадки.
-/// Сквозь него укладывается сеть <see cref="Network"/>: вдоль длинной стороны — платформа длиной до <see cref="MaxLength"/>,
-/// поперёк — до <see cref="MaxTracks"/> параллельных путей (на каждом обслуживается один состав).
+/// Вид грузовой станции (docs/10). Автостанция — прямоугольник клеток вплотную к предприятию, часть его площадки,
+/// длиной до <see cref="MaxLength"/>. Ж/д станция (docs/10в, раздел 4) — платформы на прямых путях рядом с предприятием,
+/// не дальше <see cref="MaxDistanceM"/> от его площадки: до <see cref="MaxTracks"/> путей, по составу на путь;
+/// длину платформы игрок выбирает поклеточно, без верхнего предела.
 /// </summary>
 public sealed record StationDefinition(
     TypeId Id,
     TypeId Network,
     IReadOnlyList<TypeId> AttachToSiteTypes,
     int MaxLength,
-    int MaxTracks = 1);
+    int MaxTracks = 1,
+    double MaxDistanceM = 0);
 
 /// <summary>Вид моста (docs/10б): прямой, длиной до <see cref="MaxLength"/> клеток вместе с опорами.</summary>
 public sealed record BridgeDefinition(TypeId Id, TypeId Network, int MaxLength);
@@ -46,6 +48,9 @@ public enum FacilityPlacement
 
     /// <summary>Остановка на уже проложенной сети внутри площадки объекта (городской грузовой пункт на улице).</summary>
     StopOnNetwork,
+
+    /// <summary>Ж/д депо (docs/10в): стоянка на прямом участке пути длиной <see cref="FacilityDefinition.MaxLength"/> клеток.</summary>
+    RailDepot,
 }
 
 /// <summary>Сооружение вне площадок предприятий (docs/10): депо, автогараж, городской пункт.</summary>

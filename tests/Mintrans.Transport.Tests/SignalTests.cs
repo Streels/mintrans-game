@@ -1,10 +1,13 @@
+using Mintrans.Construction.Rail;
+using Mintrans.Transport.Rail;
 using Mintrans.Transport.Runtime;
-using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 using static Mintrans.Transport.Tests.Corridor;
+using static Mintrans.Transport.Tests.TestLine;
 
 namespace Mintrans.Transport.Tests;
 
-/// <summary>Требования docs/10а: сигналы, закрепление пути, разъезды, блокировки, крушения, переезды и мосты.</summary>
+/// <summary>Требования docs/10а и docs/10в: сигналы, закрепление пути, разъезды, блокировки, крушения, переезды и мосты.</summary>
 public class SignalTests
 {
     [Fact]
@@ -12,9 +15,9 @@ public class SignalTests
     {
         // Блочные сигналы смотрят только в одну сторону: встречный поезд проходит сигнал сзади без проверки (docs/10а).
         var line = new Corridor();
-        line.Signal("block_signal", P(23, 6), P(24, 6));
-        line.Signal("block_signal", P(34, 6), P(33, 6));
-        line.Signal("block_signal", P(41, 6), P(40, 6));
+        line.Signal("block_signal", 26, 27);
+        line.Signal("block_signal", 74, 73);
+        line.Signal("block_signal", 110, 109);
         line.Economy.Seed(line.Map.Sites.GetByKey("coal_mine").Id, "coal", T(1000));
         var loaded = line.Train(line.WestDepot, "coal_mine", "steel_plant");
         Assert.True(line.RunUntil(() => loaded.Leg == Leg.ToB && loaded.State == VehicleState.Travelling));
@@ -45,9 +48,9 @@ public class SignalTests
 
         // Первый грузится на шахте, второй ждёт её у разъезда; гружёный первый уходит на завод вторым путём разъезда.
         var (usedLoop, delivered, reachedMine) = (false, false, false);
-        Assert.True(line.RunUntil(() => delivered && reachedMine, 24 * 4, () =>
+        Assert.True(line.RunUntil(() => delivered && reachedMine, 24 * 6, () =>
         {
-            usedLoop |= new[] { eastbound, westbound }.Any(t => t.Position.Y == 7 && t.Position.X is >= 26 and <= 32);
+            usedLoop |= new[] { eastbound, westbound }.Any(t => t.Position.Y == 21 && t.Position.X is >= 40 and <= 60);
             delivered |= eastbound.State == VehicleState.Unloading;
             reachedMine |= westbound.State == VehicleState.Loading;
         }));
@@ -59,12 +62,12 @@ public class SignalTests
     [Fact]
     public void Deadlock_is_reported_but_not_resolved()
     {
-        // Двусторонние маршрутные сигналы на однопутной линии без разъезда: второй поезд доходит до сигнала (23,6)
+        // Двусторонние маршрутные сигналы на однопутной линии без разъезда: второй поезд доходит до сигнала x = 26
         // и ждёт, пока шахту освободит первый, а тот ждёт, пока освободится путь, — блокировка
         // (docs/10а: она не устраняется, игрок получает предупреждение).
         var line = new Corridor();
-        line.Signal("path_signal", P(23, 6), P(23, 6));
-        line.Signal("path_signal", P(41, 6), P(41, 6));
+        line.Signal("path_signal", 26, 26);
+        line.Signal("path_signal", 110, 110);
         line.Economy.Seed(line.Map.Sites.GetByKey("coal_mine").Id, "coal", T(1000));
         var first = line.Train(line.WestDepot, "coal_mine", "steel_plant");
         var second = line.Train(line.EastDepot, "coal_mine", "steel_plant");
@@ -76,18 +79,18 @@ public class SignalTests
         Assert.Contains("маршрутного сигнала", second.Reason);
         Assert.Contains(line.Simulation.State.Log.Messages, m => m.Text.Contains("возможна взаимная блокировка"));
         // Маршрутный сигнал, за которым никто не закрепил путь, красный.
-        var rails = (TrackNetworkLayer)line.Map.Networks["rail"];
-        var signal = rails.SignalOn(P(23, 6), TrackPieces.EastWest)!;
+        var signal = line.Rails.Signals.MinBy(s => line.Rails.CellOf(s).X)!;
         Assert.True(signal.TwoWay);
-        Assert.False(line.Transport.Rail("rail").IsGreen(signal, Core.Grid.Direction.West));
+        Assert.False(line.Transport.Rail("rail").IsGreen(signal, forward: false));
+        Assert.DoesNotContain(line.Transport.Vehicles, v => v.State == VehicleState.Crashed);
     }
 
     [Fact]
     public void Train_set_to_reverse_turns_back_at_red_signal()
     {
         var line = new Corridor();
-        line.Signal("path_signal", P(23, 6), P(23, 6));
-        line.Signal("path_signal", P(41, 6), P(41, 6));
+        line.Signal("path_signal", 26, 26);
+        line.Signal("path_signal", 110, 110);
         line.Economy.Seed(line.Map.Sites.GetByKey("coal_mine").Id, "coal", T(1000));
         var first = line.Train(line.WestDepot, "coal_mine", "steel_plant");
         var second = line.Train(line.EastDepot, "coal_mine", "steel_plant");
@@ -104,34 +107,25 @@ public class SignalTests
     {
         var line = new Corridor();
         var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
-        // За час поезд проходит несколько клеток, поэтому смотрим на маршрут: он ведёт по пролёту над поперечной линией.
+        var rails = line.Rails;
         var onBridge = false;
-        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 3,
-            () => onBridge |= train.Path.Any(p => p.Elevated && p.Cell == P(36, 6))));
+        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 4,
+            () => onBridge |= train.RailRoute?.Edges.Any(e => rails.IsBridge(rails.Edge(e.Edge))) == true));
         Assert.True(onBridge);
-        Assert.True(NetworkQueries.AreConnected(line.Map.Networks["rail"], [P(36, 1)], [P(36, 12)]));
-        Assert.False(NetworkQueries.AreConnected(line.Map.Networks["rail"], [P(36, 1)], [P(30, 6)]));
+        // Поперечная линия проходит под мостом и с главным путём не соединена.
+        var cross = rails.Edges.Single(e => Math.Abs(e.Geometry.Start.X - C(80, 4).X) < 0.01);
+        Assert.Null(RailRouter.Find(rails, new TrackPosition(new DirectedEdge(cross.Id, true), 0),
+            new TrackPosition(new DirectedEdge(rails.Edges.First().Id, true), 10)));
     }
 
     [Fact]
-    public void Train_goes_straight_over_rail_cross_and_holds_it_against_the_other_line()
+    public void Independent_line_cannot_cross_at_grade()
     {
         var line = new Corridor();
-        // Поперечная линия пересекает коридор крестом в (28,6), без моста.
-        Assert.True(line.Builder.BuildPath("rail", P(28, 2), P(28, 10)).CanBuild);
-        var rails = (TrackNetworkLayer)line.Map.Networks["rail"];
-        Assert.True(rails.PiecesAt(P(28, 6)).IsCrossing());
-
-        var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
-        var acrossOtherLine = new Rail.TrackSegment(P(28, 6), TrackPieces.NorthSouth, false);
-        var (passedStraight, heldCross) = (false, false);
-        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 3, () =>
-        {
-            passedStraight |= train.Path.Any(p => p.Cell == P(28, 6) && p.Entry == Core.Grid.Direction.West && p.Exit == Core.Grid.Direction.East);
-            heldCross |= line.Transport.Rail("rail").Reservations.ConflictWith(acrossOtherLine, new VehicleId(999)) == train.Id;
-        }));
-        Assert.True(passedStraight, "поезд не прошёл крест прямо");
-        Assert.True(heldCross, "закреплённый путь через крест не мешает поперечной линии");
+        // Поперечная линия через главный путь без моста — нет допустимого соединения (docs/10в, раздел 7).
+        var connection = line.Builder.PlanRail(C(30, 4), C(30, 36));
+        Assert.False(connection.CanConfirm);
+        Assert.Contains(connection.Rejections, r => r.Contains("мост"));
     }
 
     [Fact]
@@ -139,16 +133,19 @@ public class SignalTests
     {
         var line = new Corridor();
         var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
-        // Поезд идёт на восток и уже закрепил путь через переезд — машина подъедет к закрытому переезду.
-        Assert.True(line.RunUntil(() => train.Position.X >= 38 && train.Position.Y == 6, 24 * 2));
+        var rail = line.Transport.Rail("rail");
+        var crossing = line.Map.Crossings.At(Crossing).Single();
+        var span = new TrackSpan(crossing.Edge, crossing.FromM, crossing.ToM);
+        // Поезд идёт на восток и подходит к переезду — машина подъедет к закрытому переезду.
+        Assert.True(line.RunUntil(() => train.Position.X >= 116 && train.Position.Y == 20, 24 * 3));
         var truck = line.Transport.Buy(line.Garage.Id, "truck");
         line.Transport.AssignRoute(truck.Id, line.CityStops[0], line.CityStops[1]);
 
         var waited = false;
-        Assert.True(line.RunUntil(() => truck.State == VehicleState.Loading, 24, () =>
+        Assert.True(line.RunUntil(() => truck.State == VehicleState.Loading, 48, () =>
         {
             waited |= truck.Reason.Contains("ждёт у переезда");
-            Assert.False(truck.Position == train.Position || train.Trail.Contains(truck.Position), "машина на переезде вместе с поездом");
+            Assert.False(truck.Position == Crossing && rail.Occupancy.Any(span), "машина на переезде вместе с поездом");
         }));
         Assert.True(waited);
     }
@@ -159,20 +156,45 @@ public class SignalTests
         var line = new Corridor();
         var truck = line.Transport.Buy(line.Garage.Id, "truck");
         line.Transport.AssignRoute(truck.Id, line.CityStops[0], line.CityStops[1]);
-        Assert.True(line.RunUntil(() => truck.Position == P(48, 6), 4));
+        Assert.True(line.RunUntil(() => truck.Position == Crossing, 8));
         // Дорогу за переездом снесли — машина застряла прямо на переезде.
-        Assert.True(line.Builder.Demolish(P(48, 7), P(48, 7)).CanBuild);
+        Assert.True(line.Builder.Demolish(P(140, 21), P(140, 21)).CanBuild);
 
         var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
-        Assert.True(line.RunUntil(() => train.Reason.Contains("на переезде"), 24 * 2));
-        Assert.Equal(P(47, 6), train.Position);
+        Assert.True(line.RunUntil(() => train.Reason.Contains("на переезде"), 24 * 3));
+        Assert.Equal(20, train.Position.Y);
+        // Поезд подъехал вплотную к переезду и стоит перед ним.
+        Assert.Equal(139, train.Position.X);
 
-        Assert.True(line.Builder.BuildPath("road", P(48, 7), P(48, 10)).CanBuild);
-        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 2));
+        Assert.True(line.Builder.BuildPath("road", P(140, 21), P(140, 26)).CanBuild);
+        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 3));
         Assert.DoesNotContain(line.Transport.Vehicles, v => v.State == VehicleState.Crashed);
     }
 
-    private static Economy.Mass T(double tonnes) => Economy.Mass.FromTonnes(tonnes);
+    [Fact]
+    public void Building_a_switch_under_a_running_train_keeps_its_place()
+    {
+        var line = new Corridor();
+        var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
+        Assert.True(line.RunUntil(() => train.Position.X >= 110 && train.Position.Y == 20, 24 * 4));
+        var before = line.Rails.Locate(train.Body!.Head).At;
+        // Стрелка позади поезда делит путь, на котором он стоит: положение переезжает на часть пути.
+        Built(line.Builder.BuildRail(C(104, 20), C(150, 4)));
+        Assert.True(line.Rails.Locate(train.Body!.Head).At.ApproxEquals(before, 1e-6));
+        Assert.True(line.RunUntil(() => train.State == VehicleState.Loading, 24 * 4));
+        Assert.DoesNotContain(line.Transport.Vehicles, v => v.State == VehicleState.Crashed);
+    }
+
+    [Fact]
+    public void Track_under_a_train_cannot_be_demolished()
+    {
+        var line = new Corridor();
+        var train = line.Train(line.WestDepot, "steel_plant", "coal_mine");
+        Assert.True(line.RunUntil(() => train.Position.X >= 110 && train.Position.Y == 20, 24 * 4));
+        var cell = train.Position;
+        var plan = line.Builder.PlanDemolish(cell, cell);
+        Assert.Contains(plan.Problems, p => p.Message.Contains("поезд"));
+    }
 
     private static void AssertConserved(Corridor line)
     {

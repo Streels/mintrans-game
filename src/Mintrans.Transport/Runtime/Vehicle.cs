@@ -1,7 +1,9 @@
 using Mintrans.Core.Grid;
 using Mintrans.Core.Ids;
 using Mintrans.Economy;
+using Mintrans.Core.Spatial;
 using Mintrans.Transport.Definitions;
+using Mintrans.Transport.Rail;
 using Mintrans.Transport.Routing;
 using Mintrans.Transport.Stops;
 using Mintrans.World.Facilities;
@@ -77,8 +79,9 @@ public sealed class VehicleUnit(VehicleModel model, TruckBody? body = null)
 }
 
 /// <summary>
-/// Поезд или грузовик. Положение — точка на сети (клетка и направление движения); поезд дополнительно занимает
-/// «хвост» из клеток, по которым только что проехал, — по длине состава (docs/02, docs/10а: поезд не точка).
+/// Поезд или грузовик. Грузовик — точка на клеточной сети дорог (клетка и направление движения).
+/// Поезд — состав на рельсовом графе (docs/10в): голова в метрах на пути и пути за ней по длине состава
+/// (<see cref="Body"/>), маршрут — пути графа (<see cref="RailRoute"/>).
 /// </summary>
 public sealed class Vehicle
 {
@@ -159,9 +162,47 @@ public sealed class Vehicle
     /// (docs/12). Null, если техника не в пути.
     /// </summary>
     public double? HoursToArrival =>
-        State == VehicleState.Travelling && Path.Count > 0 && Speed > 0
-            ? Math.Max(0, Path.Count - 1 - PathIndex - MoveBudget) / Speed
-            : null;
+        State != VehicleState.Travelling || Speed <= 0 ? null
+        : Network.Trains ? RailRemainingM is { } metres ? Math.Max(0, metres) / SpeedMph : null
+        : Path.Count > 0 ? Math.Max(0, Path.Count - 1 - PathIndex - MoveBudget) / Speed
+        : null;
+
+    // ---------- Поезд на рельсовом графе ----------
+
+    /// <summary>Положение состава на путях; null — поезд в депо (не на путях).</summary>
+    public TrainBody? Body { get; internal set; }
+
+    /// <summary>Маршрут поезда до цели этапа; голова — на пути с номером <see cref="RailRouteIndex"/>.</summary>
+    public TrainRoute? RailRoute
+    {
+        get => _railRoute;
+        internal set
+        {
+            _railRoute = value;
+            RailRouteIndex = 0;
+        }
+    }
+
+    private TrainRoute? _railRoute;
+
+    public int RailRouteIndex { get; internal set; }
+
+    internal int RailRevision { get; set; } = -1;
+
+    /// <summary>Сколько метров маршрута осталось до цели (для оценки времени прибытия).</summary>
+    public double? RailRemainingM { get; internal set; }
+
+    /// <summary>Стоянка (платформа или депо), у которой поезд стоит после прибытия.</summary>
+    public World.Rail.RailBerthId? Berth { get; internal set; }
+
+    /// <summary>Скорость в метрах за час: клетки в час по 5 м (docs/02в).</summary>
+    public double SpeedMph => Speed * SpatialScale.CellM;
+
+    /// <summary>Длина состава в метрах.</summary>
+    public double LengthM => _units.Sum(u => u.Model.Length) / (double)Math.Max(1, Network.UnitsPerCell) * SpatialScale.CellM;
+
+    /// <summary>Клетка, в которой сейчас голова поезда (для подсказок и переездов).</summary>
+    internal void SetCell(GridPos cell) => Head = new RoutePoint(cell, null, null);
 
     /// <summary>Износ от 0 до 1 и выше (docs/11).</summary>
     public double Wear { get; internal set; }
@@ -189,6 +230,9 @@ public sealed class Vehicle
             return 1;
         return Math.Min(1.0, stopLength * Network.WagonsPerStopCell / (double)wagons);
     }
+
+    /// <summary>То же для платформы длиной <paramref name="platformM"/> метров.</summary>
+    public double PlatformFitM(double platformM) => PlatformFit((int)Math.Round(platformM / SpatialScale.CellM));
 
     /// <summary>Пояснение для игрока: почему стоит, чего ждёт.</summary>
     public string Reason { get; internal set; } = "";
@@ -226,6 +270,8 @@ public sealed class Vehicle
     {
         Path = [];
         PathIndex = 0;
+        RailRoute = null;
+        RailRemainingM = null;
     }
 
     /// <summary>Сдвинуть голову на следующую точку маршрута; хвост тянется следом.</summary>
@@ -254,12 +300,14 @@ public sealed class Vehicle
         ClearPath();
     }
 
-    /// <summary>Поставить технику в клетку без хвоста (в депо или гараж).</summary>
+    /// <summary>Поставить технику в клетку без хвоста (в депо или гараж); поезд сходит с путей.</summary>
     internal void PlaceAt(GridPos cell)
     {
         _trail.Clear();
         Head = new RoutePoint(cell, null, null);
         ClearPath();
+        Body = null;
+        RailRoute = null;
         CanTurn = true;
     }
 

@@ -8,7 +8,7 @@ namespace Mintrans.Game.Debug;
 /// <summary>
 /// Проверка интерфейса без человека (параметр --ui-demo[=имя]): нажимает кнопки и щёлкает или протягивает
 /// мышь по клеткам, отправляя игре обычные события мыши. В конце сохраняет кадр.
-/// Сценарии: "build" — стройка у завода; "chain" — вся цепочка прототипа с поездами и грузовиками.
+/// Сценарии: "build" — стройка у завода и предпросмотр соединения рельсов; "chain" — вся цепочка прототипа с поездами и грузовиками.
 /// </summary>
 public partial class UiScenario : Node
 {
@@ -17,6 +17,9 @@ public partial class UiScenario : Node
     private IsoProjection _projection = null!;
     private Action<long> _skipHours = null!;
     private Func<GridPos?> _firstTrain = null!;
+
+    /// <summary>Строки о технике для журнала: сценарий печатает их в конце.</summary>
+    public Func<IEnumerable<string>>? Report { get; set; }
     private int _wait;
 
     public string? ScreenshotPath { get; set; }
@@ -42,96 +45,121 @@ public partial class UiScenario : Node
 
     private static GridPos P(int x, int y) => new(x, y);
 
-    /// <summary>Ж/д станция и путь у завода, автостанция и дорога, неудачная попытка сквозь завод.</summary>
+    /// <summary>
+    /// Ж/д путь и платформа над заводом, автостанция и дорога под ним; в конце — соединение от конца пути, ждущее
+    /// подтверждения (виден радиус и подсказка про колесо мыши), и сетка стройки.
+    /// </summary>
     private void Build()
     {
+        ClickButton("Ж/д путь А→Б");
+        Rail(P(3850, 3897), P(4050, 3897));
         ClickButton("Ж/д станция");
-        Drag(P(150, 149), P(163, 149));
-        ClickButton("Ж/д путь");
-        Drag(P(164, 149), P(185, 149));
-        Drag(P(185, 149), P(195, 139));
+        Drag(P(3920, 3897), P(3929, 3897));
         ClickButton("Автостанция");
-        Drag(P(149, 158), P(149, 161));
+        Drag(P(3950, 3980), P(3953, 3980));
         ClickButton("Дорога");
-        Drag(P(148, 160), P(128, 160));
-        ClickButton("Ж/д путь");
-        Press(P(156, 165));
-        Move(P(156, 152));
+        Drag(P(3954, 3980), P(3960, 3980));
+        Drag(P(3960, 3980), P(3960, 4060));
+        ClickButton("Ж/д путь А→Б");
+        Drag(P(4050, 3897), P(4110, 3830));
+        Scroll(-1);
         Wait(5);
     }
 
-    /// <summary>Вся цепочка docs/01: станции, пути, дорога, депо, гараж, городской пункт, техника и маршруты.</summary>
+    /// <summary>Вся цепочка docs/01 на карте 40×40 км: пути, платформы, депо, сигналы, дорога, гараж, техника и маршруты.</summary>
     private void Chain()
     {
         Key(Godot.Key.F); // вся карта в окне
+        // Железная дорога как в тестах прототипа: прямые у предприятий и петли в два шага (docs/10в).
+        ClickButton("Ж/д путь А→Б");
+        Rail(P(4860, 3142), P(4980, 3142));
+        Rail(P(2760, 3342), P(2880, 3342));
+        Rail(P(3850, 3897), P(4050, 3897));
+        Rail(P(4980, 3142), P(5020, 3857));
+        Rail(P(5020, 3857), P(4050, 3897));
+        Rail(P(2760, 3342), P(2720, 3857));
+        Rail(P(2720, 3857), P(3850, 3897));
         ClickButton("Ж/д станция");
-        Drag(P(200, 48), P(207, 48));
-        Drag(P(62, 50), P(69, 50));
-        Drag(P(150, 149), P(163, 149));
-        ClickButton("Автостанция");
-        Drag(P(149, 158), P(149, 161));
-        ClickButton("Ж/д путь");
-        Drag(P(208, 48), P(208, 140));
-        Drag(P(208, 140), P(200, 149));
-        Drag(P(200, 149), P(164, 149));
-        Drag(P(61, 50), P(61, 100));
-        Drag(P(61, 100), P(110, 149));
-        Drag(P(110, 149), P(149, 149));
-        ClickButton("Дорога");
-        Drag(P(148, 160), P(80, 160));
-        Drag(P(80, 160), P(54, 186));
-        Drag(P(54, 186), P(53, 186));
-        ClickButton("Городской пункт");
-        Drag(P(50, 186), P(52, 186));
+        Drag(P(4905, 3142), P(4914, 3142));
+        Drag(P(2805, 3342), P(2814, 3342));
+        Drag(P(3920, 3897), P(3929, 3897));
         ClickButton("Ж/д депо");
-        Drag(P(180, 152), P(180, 151));
-        // Съезд из депо в обе стороны: к угольной ветке на восток и к рудной на запад.
-        ClickButton("Ж/д путь");
-        Drag(P(178, 149), P(180, 151));
-        Drag(P(182, 149), P(180, 151));
+        Drag(P(4870, 3142), P(4873, 3142));
+        Drag(P(2865, 3342), P(2868, 3342));
+        ClickButton("Маршрутный сигнал");
+        ClickCell(P(3860, 3897));
+        ClickCell(P(4040, 3897));
+        ClickButton("Автостанция");
+        Drag(P(3950, 3980), P(3953, 3980));
+        ClickButton("Дорога");
+        Drag(P(3954, 3980), P(3960, 3980));
+        Drag(P(3960, 3980), P(3960, 4300));
+        ClickButton("Городской пункт");
+        Drag(P(3960, 4310), P(3960, 4312));
         ClickButton("Автогараж");
-        Drag(P(147, 161), P(147, 160));
+        Drag(P(3961, 4000), P(3960, 4000));
 
-        // Стартовая пара docs/11b. Два паровоза Л по 12 полувагонов: уголь и руда на завод.
+        // Стартовая пара docs/11b. Два паровоза Л по 12 полувагонов — каждый из своего депо: уголь и руда на завод.
         ClickButton("Осмотр");
-        ClickCell(P(180, 152));
-        foreach (var mine in new[] { P(203, 48), P(65, 50) })
+        foreach (var (depot, mine) in new[] { (P(4871, 3142), P(4910, 3142)), (P(2866, 3342), P(2810, 3342)) })
         {
+            ClickCell(depot);
             ClickButton("Купить: Паровоз Л");
             for (var i = 0; i < 12; i++)
                 ClickButton("+ Полувагон");
             ClickButton("Выбрать А");
-            // Угольная шахта при виде всей карты оказывается под панелью депо — сдвигаем карту, как сделал бы игрок.
-            Pan(-450);
             ClickCell(mine);
-            Pan(450);
             ClickButton("Выбрать Б");
-            ClickCell(P(156, 149));
+            ClickCell(P(3925, 3897));
             ClickButton("Отправить по маршруту");
         }
         // Три ГАЗ-51 с бортовым кузовом: сталь с завода в город.
-        ClickCell(P(147, 161));
+        ClickCell(P(3961, 4000));
         for (var i = 0; i < 3; i++)
         {
             ClickButton("Купить: ГАЗ-51 бортовой");
             ClickButton("Выбрать А");
-            ClickCell(P(149, 159));
+            ClickCell(P(3951, 3980));
             ClickButton("Выбрать Б");
-            ClickCell(P(51, 186));
+            ClickCell(P(3960, 4311));
             ClickButton("Отправить по маршруту");
         }
-        // Двадцать суток, затем панель депо — посмотреть на состояние поездов.
+        // Двадцать суток, затем отчёт о технике в журнал.
         _actions.Enqueue(() => _skipHours(24 * 20));
-        ClickCell(P(180, 152));
+        _actions.Enqueue(() =>
+        {
+            foreach (var line in Report?.Invoke() ?? [])
+                GD.Print(line);
+        });
         // Крупный план первого поезда на линии (или завода, если поезда нет), чтобы были видны вагоны.
         _actions.Enqueue(() =>
         {
             var camera = GetViewport().GetCamera2D();
-            var target = _firstTrain() ?? P(160, 152);
+            var target = _firstTrain() ?? P(3925, 3897);
             camera.Zoom = new Vector2(16f, 16f);
             camera.Position = _projection.CellCenter(target, _map.Terrain.Height[target]) + new Vector2(30, 0);
         });
         Wait(5);
+    }
+
+    /// <summary>Рельсы «А→Б»: протянуть и подтвердить щелчком соединение по умолчанию.</summary>
+    private void Rail(GridPos from, GridPos to)
+    {
+        Drag(from, to);
+        ClickCell(to);
+    }
+
+    /// <summary>Колесо мыши над картой: шаг вверх (+1) или вниз (−1).</summary>
+    private void Scroll(int step)
+    {
+        _actions.Enqueue(() =>
+        {
+            var center = GetViewport().GetVisibleRect().GetCenter();
+            var button = step > 0 ? MouseButton.WheelUp : MouseButton.WheelDown;
+            Push(new InputEventMouseButton { ButtonIndex = button, Pressed = true, Position = center, GlobalPosition = center });
+            Push(new InputEventMouseButton { ButtonIndex = button, Pressed = false, Position = center, GlobalPosition = center });
+        });
+        Wait(2);
     }
 
     public override void _Process(double delta)

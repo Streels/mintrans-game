@@ -1,0 +1,96 @@
+using Godot;
+using Mintrans.Core.Geometry;
+using Mintrans.Core.Spatial;
+using Mintrans.World;
+using Mintrans.World.Rail;
+
+namespace Mintrans.Game.View;
+
+/// <summary>
+/// Оси рельсов на экране: метрическая геометрия (docs/10в) → ломаная в изометрии с высотой рельефа под каждой точкой.
+/// Мост рисуется на высоте настила: на <c>lift</c> уровней выше самой высокой клетки под ним, с пандусами у опор.
+/// Только отображение: на правила не влияет.
+/// </summary>
+public static class RailLines
+{
+    /// <summary>Шаг точек ломаной вдоль пути, м: дуги выглядят гладкими, а высота следует за рельефом.</summary>
+    public const double StepM = 2.5;
+
+    /// <summary>
+    /// Насколько упрощённая ломаная может отойти от точной, единиц мира на экране (при наибольшем масштабе камеры, 32×, —
+    /// около пикселя). Прямая по ровному месту становится одним отрезком: 2 000 км путей — не миллион точек (docs/02в, раздел 11).
+    /// </summary>
+    public const float ToleranceUnits = 0.03f;
+
+    /// <summary>Ломаная оси на экране; <paramref name="deck"/> — высота настила моста или null для пути на земле.</summary>
+    public static Vector2[] Points(PathGeometry axis, WorldMap map, IsoProjection projection, float? deck)
+    {
+        var count = Math.Max(1, (int)Math.Ceiling(axis.Length / StepM));
+        var points = new Vector2[count + 1];
+        for (var i = 0; i <= count; i++)
+        {
+            var s = axis.Length * i / count;
+            points[i] = projection.World(axis.PointAt(s), Height(map, axis, s, deck));
+        }
+        return Simplify(points, ToleranceUnits);
+    }
+
+    /// <summary>Упрощение ломаной (Рамер — Дуглас — Пекер): выбрасывает точки, отходящие от хорды меньше чем на <paramref name="tolerance"/>.</summary>
+    public static Vector2[] Simplify(Vector2[] points, float tolerance)
+    {
+        if (points.Length < 3)
+            return points;
+        var keep = new bool[points.Length];
+        keep[0] = keep[^1] = true;
+        var stack = new Stack<(int From, int To)>();
+        stack.Push((0, points.Length - 1));
+        while (stack.Count > 0)
+        {
+            var (from, to) = stack.Pop();
+            var (a, b) = (points[from], points[to]);
+            var (worst, at) = (tolerance, -1);
+            for (var i = from + 1; i < to; i++)
+            {
+                var distance = Geometry2D.GetClosestPointToSegment(points[i], a, b).DistanceTo(points[i]);
+                if (distance > worst)
+                    (worst, at) = (distance, i);
+            }
+            if (at < 0)
+                continue;
+            keep[at] = true;
+            stack.Push((from, at));
+            stack.Push((at, to));
+        }
+        return points.Where((_, i) => keep[i]).ToArray();
+    }
+
+    /// <summary>Высота точки пути для отрисовки: рельеф или настил моста с пандусом в пределах клетки у опоры.</summary>
+    public static float Height(WorldMap map, PathGeometry axis, double s, float? deck)
+    {
+        var ground = Ground(map, axis.PointAt(s));
+        if (deck is not { } top)
+            return ground;
+        var ramp = Math.Min(s, axis.Length - s) / SpatialScale.CellM;
+        return ramp >= 1 ? top : ground + (top - ground) * (float)ramp;
+    }
+
+    public static float Ground(WorldMap map, WorldPoint at)
+    {
+        var cell = SpatialScale.ToCell(at);
+        cell = new(Math.Clamp(cell.X, 0, map.Width - 1), Math.Clamp(cell.Y, 0, map.Height - 1));
+        return map.Terrain.Height[cell];
+    }
+
+    /// <summary>Высота настила моста: на <paramref name="lift"/> уровней выше самой высокой клетки под ним.</summary>
+    public static float Deck(WorldMap map, PathGeometry axis, int lift)
+    {
+        var top = float.NegativeInfinity;
+        for (var s = 0.0; s <= axis.Length; s += SpatialScale.CellM / 2)
+            top = Math.Max(top, Ground(map, axis.PointAt(s)));
+        return top + lift;
+    }
+
+    /// <summary>Высота настила пути или null, если путь лежит на земле.</summary>
+    public static float? DeckOf(WorldMap map, RailNetwork rails, TrackEdge edge, int lift) =>
+        rails.IsBridge(edge) ? Deck(map, edge.Geometry, lift) : null;
+}

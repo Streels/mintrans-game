@@ -7,9 +7,10 @@ namespace Mintrans.Game.App;
 /// --content=путь  --map=prototype  --focus=city (или --focus=x,y)  --zoom=1.5  --screenshot=файл.png
 /// --paused (начать на паузе)  --hours=26 (сразу промотать столько игровых часов)
 /// --ui-demo[=build|chain] (сценарий проверки интерфейса мышью; с --screenshot сохраняет кадр в конце)
+/// --perf (замер загрузки и времени кадра на нескольких видах, см. Debug/PerfProbe)
 /// </summary>
 public sealed record AppArgs(
-    string? Content, string Map, string? Focus, float? Zoom, string? Screenshot, bool Paused, long SkipHours, string? UiDemo)
+    string? Content, string Map, string? Focus, float? Zoom, string? Screenshot, bool Paused, long SkipHours, string? UiDemo, bool Perf)
 {
     public static AppArgs Parse(IEnumerable<string> args)
     {
@@ -27,7 +28,8 @@ public sealed record AppArgs(
             values.GetValueOrDefault("screenshot"),
             list.Contains("--paused"),
             values.TryGetValue("hours", out var hours) && long.TryParse(hours, out var h) ? h : 0,
-            values.GetValueOrDefault("ui-demo") ?? (list.Contains("--ui-demo") ? "build" : null));
+            values.GetValueOrDefault("ui-demo") ?? (list.Contains("--ui-demo") ? "build" : null),
+            list.Contains("--perf"));
     }
 
     public static AppArgs FromCommandLine() => Parse(OS.GetCmdlineUserArgs());

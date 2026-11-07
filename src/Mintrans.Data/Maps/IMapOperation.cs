@@ -70,6 +70,9 @@ public sealed class MapOperations
         new Networks.LineOperation(),
         new Networks.GridOperation(),
         new Networks.BridgeOperation(),
-        new Networks.SignalOperation(),
+        new Networks.RailOperation(),
+        new Networks.RailConnectOperation(),
+        new Networks.RailBridgeOperation(),
+        new Networks.RailSignalOperation(),
     ]);
 }

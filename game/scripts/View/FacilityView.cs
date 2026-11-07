@@ -5,7 +5,8 @@ using Mintrans.World;
 namespace Mintrans.Game.View;
 
 /// <summary>
-/// Сооружения: депо и гаражи — тёмная площадка с полосой въезда, городские пункты — подсветка клеток улицы.
+/// Сооружения: автогаражи — тёмная площадка с полосой въезда, ж/д депо — клетки под стоянкой на пути,
+/// городские пункты — подсветка клеток улицы.
 /// Цвета — из раздела "facilities" стиля карты.
 /// </summary>
 public partial class FacilityView : Node2D
@@ -35,6 +36,17 @@ public partial class FacilityView : Node2D
         {
             var style = _style.PartFor(facility.Kind, _style.DefaultSite);
             var height = _map.Terrain.Height[facility.Area.Origin];
+            if (facility.Footprint is { } cells)
+            {
+                // Депо на пути: клетки под стоянкой, по которым проходит путь.
+                foreach (var cell in cells)
+                {
+                    var (top, right, bottom, left) = _projection.CellCorners(cell, _map.Terrain.Height[cell]);
+                    DrawColoredPolygon([top, right, bottom, left], style.Fill);
+                    DrawPolyline([top, right, bottom, left, top], style.Outline, 1.5f);
+                }
+                continue;
+            }
             var corners = _projection.RectCorners(facility.Area, height);
             DrawColoredPolygon(corners, style.Fill);
             DrawPolyline([.. corners, corners[0]], style.Outline, 2f);

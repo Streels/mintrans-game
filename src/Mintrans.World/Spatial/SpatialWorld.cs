@@ -68,6 +68,16 @@ public sealed class SpatialChange
     public void AllowJoint(ObjectId a, ObjectId b, IReadOnlyList<PathInterval> ignoreA, IReadOnlyList<PathInterval> ignoreB) =>
         _joints.Add((a, b, ignoreA, ignoreB));
 
+    private readonly HashSet<ObjectId> _verified = [];
+
+    /// <summary>
+    /// Объект повторяет уже проверенную геометрию (часть разделённого пути): его не сверяют с построенным,
+    /// местностью и другими такими же частями — только с действительно новыми объектами изменения.
+    /// </summary>
+    public void MarkVerified(ObjectId id) => _verified.Add(id);
+
+    public bool IsVerified(ObjectId id) => _verified.Contains(id);
+
     internal (IReadOnlyList<PathInterval>? A, IReadOnlyList<PathInterval>? B)? JointOf(ObjectId a, ObjectId b)
     {
         foreach (var joint in _joints)
@@ -183,18 +193,22 @@ public sealed class SpatialWorld
                 issues.Add(new SpatialIssue(candidate.Id, null, "выходит за границу карты"));
                 continue;
             }
-            foreach (var rule in TerrainRules)
-                if (rule.Check(candidate, Terrain) is { } reason)
-                    issues.Add(new SpatialIssue(candidate.Id, null, reason));
-            foreach (var otherId in Index.Candidates(cells[candidate.Id]))
+            var verified = change.IsVerified(candidate.Id);
+            if (!verified)
             {
-                if (change.Removed.Contains(otherId))
-                    continue;
-                if (Conflicts(change, candidate, Get(otherId)))
-                    issues.Add(new SpatialIssue(candidate.Id, otherId, "пересекается с построенным"));
+                foreach (var rule in TerrainRules)
+                    if (rule.Check(candidate, Terrain) is { } reason)
+                        issues.Add(new SpatialIssue(candidate.Id, null, reason));
+                foreach (var otherId in Index.Candidates(cells[candidate.Id]))
+                {
+                    if (change.Removed.Contains(otherId))
+                        continue;
+                    if (Conflicts(change, candidate, Get(otherId)))
+                        issues.Add(new SpatialIssue(candidate.Id, otherId, "пересекается с построенным"));
+                }
             }
             for (var k = 0; k < i; k++)
-                if (Conflicts(change, candidate, added[k]))
+                if (!(verified && change.IsVerified(added[k].Id)) && Conflicts(change, candidate, added[k]))
                     issues.Add(new SpatialIssue(candidate.Id, added[k].Id, "пересекается с другой частью постройки"));
         }
         return new SpatialPreview(cells, issues);

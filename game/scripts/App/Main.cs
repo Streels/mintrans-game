@@ -46,6 +46,7 @@ public partial class Main : Node2D
         _camera = new MapCamera { Name = "Camera" };
         AddChild(_camera);
 
+        var loading = System.Diagnostics.Stopwatch.StartNew();
         try
         {
             Build(args);
@@ -58,12 +59,18 @@ public partial class Main : Node2D
 
         if (args.UiDemo is { } demo && _map is not null && _simulation is { } simulation)
         {
-            var scenario = new UiScenario { ScreenshotPath = args.Screenshot };
+            var scenario = new UiScenario
+            {
+                ScreenshotPath = args.Screenshot,
+                Report = () => _transport?.Vehicles.Select(v => $"{v.Name}: {v.State}, {v.Reason}, груз {v.Cargo}") ?? [],
+            };
             AddChild(scenario);
             scenario.Init(_map, _projection, demo, simulation.Run, () => _transport?.Vehicles
                 .Where(v => v.Network.Trains && v.State is VehicleState.Travelling or VehicleState.Loading or VehicleState.Unloading)
                 .Select(v => (Core.Grid.GridPos?)v.Position).FirstOrDefault());
         }
+        else if (args.Perf && _map is not null)
+            AddPerfProbe(_map, args.Screenshot, loading.Elapsed.TotalSeconds);
         else if (args.Screenshot is { } path)
             AddChild(new ScreenshotCapture { Path = path });
     }
@@ -153,9 +160,13 @@ public partial class Main : Node2D
         // Строительство: правила — в ядре (Builder), здесь только ввод мышью и подсветка.
         var builder = new Builder(map, content.Construction);
         builder.AddDemolishGuard(new DelegateDemolishGuard(f => TransportModule.WhyFacilityInUse(transport, f)));
+        // Путь под поездом и закреплённый за ним участок не сносятся (docs/10в, раздел 7).
+        map.Rails?.Rules.Add(TransportModule.RailGuard(transport));
         var build = new BuildController { Name = "Build" };
         AddChild(build);
         build.Init(map, _projection);
+        // Пока выбирается радиус соединения рельсов, колесо мыши меняет радиус, а не масштаб.
+        _camera.InputCaptured = () => build.CapturesWheel;
         // Щелчок без инструмента: выбор пункта маршрута или открытие депо.
         build.CellClicked += cell =>
         {
@@ -239,6 +250,24 @@ public partial class Main : Node2D
             GD.PushWarning($"Спрайты поездов не загружены, рисую линией: {e.Message}");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Замер отрисовки: вся карта, район около 10 км и 2 км в центре, крупный план у первого переезда
+    /// (или у середины карты, если переездов нет).
+    /// </summary>
+    private void AddPerfProbe(WorldMap map, string? screenshot, double loadSeconds)
+    {
+        var probe = new PerfProbe { Name = "PerfProbe", ScreenshotPath = screenshot };
+        AddChild(probe);
+        probe.Init(_camera, loadSeconds);
+        var center = new GridPos(map.Width / 2, map.Height / 2);
+        var close = map.Crossings.All.FirstOrDefault()?.Cell ?? center;
+        Vector2 At(GridPos cell) => _projection.CellCenter(cell, map.Terrain.Height[cell]);
+        probe.AddView("вся карта", camera => camera.Fit(MapBounds(map)));
+        probe.AddView("район 10 км", camera => camera.Focus(At(center), 0.02f));
+        probe.AddView("район 2 км", camera => camera.Focus(At(center), 0.1f));
+        probe.AddView($"крупно у клетки {close}", camera => camera.Focus(At(close), 1.5f));
     }
 
     private Rect2 MapBounds(WorldMap map)

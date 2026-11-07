@@ -1,6 +1,7 @@
 using Mintrans.Data.Json;
 using Mintrans.World;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 using Mintrans.World.Sites;
 using Mintrans.World.Terrain;
 
@@ -20,16 +21,19 @@ public sealed class MapLoader
     private readonly MapOperations _terrainOperations;
     private readonly MapOperations _networkOperations;
     private readonly SitePlacement _placement;
+    private readonly RailNetworkSettings? _railSettings;
 
     public MapLoader(
         TerrainCatalog terrain,
         IReadOnlyList<NetworkDefinition> networks,
         MapOperations? terrainOperations = null,
         MapOperations? networkOperations = null,
-        SitePlacement? placement = null)
+        SitePlacement? placement = null,
+        RailNetworkSettings? railSettings = null)
     {
         _terrain = terrain;
         _networks = networks;
+        _railSettings = railSettings;
         _terrainOperations = terrainOperations ?? MapOperations.DefaultTerrain();
         _networkOperations = networkOperations ?? MapOperations.DefaultNetworks();
         _placement = placement ?? SitePlacement.Basic();
@@ -45,8 +49,12 @@ public sealed class MapLoader
         if (width <= 0 || height <= 0)
             throw root.Get("size").Error($"размер карты должен быть положительным: {width}x{height}");
         var seed = root.Find("seed")?.AsULong() ?? 0;
+        // Шаг сетки рельефа в клетках (docs/02в, раздел 5): на большой карте рельеф хранится крупнее строительной сетки.
+        var terrainStep = root.Find("terrainStep")?.AsInt() ?? 1;
+        if (terrainStep <= 0)
+            throw root.Get("terrainStep").Error("шаг рельефа должен быть положительным");
 
-        var map = new WorldMap(width, height, seed, _terrain, _networks);
+        var map = new WorldMap(width, height, seed, _terrain, _networks, _railSettings, terrainStep);
 
         foreach (var step in root.Find("terrain")?.Items() ?? [])
             _terrainOperations.Apply(step, map);

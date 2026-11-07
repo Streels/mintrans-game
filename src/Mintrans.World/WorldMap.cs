@@ -1,28 +1,45 @@
 using Mintrans.Core.Grid;
+using Mintrans.Core.Spatial;
 using Mintrans.World.Facilities;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 using Mintrans.World.Sites;
+using Mintrans.World.Spatial;
 using Mintrans.World.Terrain;
 
 namespace Mintrans.World;
 
 /// <summary>
-/// Карта мира: квадратная сетка с природными слоями, транспортными сетями и объектами.
-/// Ничего не знает об изометрии, Godot и экономике.
+/// Карта мира: строительная сетка 5×5 м (разреженная: память — только под занятые клетки) с природными слоями
+/// на крупной сетке рельефа, клеточными сетями (дороги) и объектами, плюс
+/// пространственный мир в метрах (docs/02в) с рельсовым графом (docs/10в). Ничего не знает об изометрии, Godot и экономике.
 /// </summary>
 public sealed class WorldMap
 {
-    public WorldMap(int width, int height, ulong seed, TerrainCatalog terrainCatalog, IEnumerable<NetworkDefinition> networks)
+    /// <param name="railSettings">Свойства рельсового графа; по умолчанию — черновые параметры v1 (docs/10в).</param>
+    /// <param name="terrainStep">Шаг сетки рельефа в строительных клетках (docs/02в, раздел 5); 1 — рельеф в каждой клетке.</param>
+    public WorldMap(int width, int height, ulong seed, TerrainCatalog terrainCatalog, IEnumerable<NetworkDefinition> networks,
+        RailNetworkSettings? railSettings = null, int terrainStep = 1)
     {
         if (width <= 0 || height <= 0)
             throw new ArgumentOutOfRangeException(nameof(width), $"Размер карты должен быть положительным: {width}x{height}.");
         Width = width;
         Height = height;
         Seed = seed;
-        Terrain = new TerrainLayers(terrainCatalog, width, height);
-        Networks = new NetworkSet(networks, width, height);
+        Terrain = new TerrainLayers(terrainCatalog, width, height, terrainStep);
+        var definitions = networks.ToList();
+        Networks = new NetworkSet(definitions, width, height);
         Sites = new SiteRegistry(width, height);
         Facilities = new FacilityRegistry(width, height);
+        Spatial = new SpatialWorld(
+            new WorldBounds(0, 0, width * SpatialScale.CellM, height * SpatialScale.CellM),
+            new MapTerrainField(Terrain, width, height));
+        var graphs = definitions.Where(d => d.IsGraph).ToList();
+        if (graphs.Count > 1)
+            throw new ArgumentException($"Рельсовый граф пока один на карту, а объявлено: {string.Join(", ", graphs.Select(g => g.Id))}.");
+        if (graphs.Count == 1)
+            Rails = new RailNetwork(Spatial, (railSettings ?? new RailNetworkSettings(graphs[0].Id)) with { Kind = graphs[0].Id });
+        Crossings = new RailCrossings(this);
     }
 
     public int Width { get; }
@@ -38,6 +55,19 @@ public sealed class WorldMap
 
     /// <summary>Транспортные сооружения вне площадок: депо, гаражи, городские пункты.</summary>
     public FacilityRegistry Facilities { get; }
+
+    /// <summary>Объекты с метрической геометрией и разреженный индекс клеток (docs/02в).</summary>
+    public SpatialWorld Spatial { get; }
+
+    /// <summary>Рельсовый граф (docs/10в) или null, если на карте нет рельсовой сети.</summary>
+    public RailNetwork? Rails { get; }
+
+    /// <summary>Переезды: клетки дорог, через которые проходят рельсы на земле (docs/10а).</summary>
+    public RailCrossings Crossings { get; }
+
+    /// <summary>Рельсовый граф; ошибка, если на карте нет рельсовой сети.</summary>
+    public RailNetwork RequireRails() =>
+        Rails ?? throw new InvalidOperationException("На карте нет рельсовой сети (в networks.json нет сети с раскладкой «graph»).");
 
     public bool Contains(GridPos pos) => Bounds.Contains(pos);
 }

@@ -75,9 +75,10 @@ public static class ShapeConflicts
     private static bool CorridorArea(CorridorShape corridor, IReadOnlyList<PathInterval>? ignore, AreaShape area)
     {
         var limit = corridor.HalfWidthM - SpatialScale.EpsilonM;
+        var near = area.Rect.Expand(corridor.HalfWidthM);
         foreach (var segment in corridor.Axis.Flat)
         {
-            if (Ignored(segment, ignore))
+            if (!segment.Bounds.Touches(near) || Ignored(segment, ignore))
                 continue;
             var distance = Distances.SegmentRect(segment.A, segment.B, area.Rect);
             if (distance < limit || (distance == 0 && Distances.SegmentRect(segment.A, segment.B, area.Shrunk) == 0))

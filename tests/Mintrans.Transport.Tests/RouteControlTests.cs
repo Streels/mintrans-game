@@ -14,7 +14,7 @@ public class RouteControlTests
         var line = new TestLine();
         var train = line.Train();
         line.Transport.AssignRoute(train.Id, line.Stop("coal_mine", "rail"), line.Stop("steel_plant", "rail"));
-        RunUntil(line, () => train.State == VehicleState.Travelling && train.Position.Y == 6);
+        RunUntil(line, () => train.State == VehicleState.Travelling && train.Position.Y == 20);
 
         line.Transport.Stop(train.Id);
         var position = train.Position;

@@ -32,12 +32,19 @@ public sealed class CorridorShape(PathGeometry axis, double halfWidthM) : Spatia
 
     public override WorldBounds Bounds => Axis.Bounds.Expand(HalfWidthM);
 
-    public override IReadOnlyCollection<GridPos> TouchedCells() => _cells ??= ComputeCells();
+    public override IReadOnlyCollection<GridPos> TouchedCells() => _cells ??= ComputeCells(HalfWidthM + PathGeometry.FlattenToleranceM);
 
-    private SortedSet<GridPos> ComputeCells()
+    private IReadOnlyCollection<GridPos>? _interior;
+
+    /// <summary>
+    /// Клетки, в которые габарит действительно заходит, а не только касается их края: то же, что точная проверка
+    /// пересечения с квадратом клетки, но за один проход по оси.
+    /// </summary>
+    public IReadOnlyCollection<GridPos> CoveredCells() => _interior ??= ComputeCells(HalfWidthM - SpatialScale.EpsilonM);
+
+    private SortedSet<GridPos> ComputeCells(double reach)
     {
-        // Ломаная лежит не дальше допуска от дуги: расширяем порог на допуск, чтобы не потерять клетку на изгибе.
-        var reach = HalfWidthM + PathGeometry.FlattenToleranceM;
+        // Для индекса ломаная лежит не дальше допуска от дуги: порог расширен на допуск, чтобы не потерять клетку на изгибе.
         var cells = new SortedSet<GridPos>(GridPosOrder.Instance);
         foreach (var segment in Axis.Flat)
         foreach (var cell in SpatialScale.CellsTouching(segment.Bounds.Expand(reach)))

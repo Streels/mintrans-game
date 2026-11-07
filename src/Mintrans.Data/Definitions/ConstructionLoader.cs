@@ -3,6 +3,7 @@ using Mintrans.Construction.Rail;
 using Mintrans.Core.Ids;
 using Mintrans.Data.Json;
 using Mintrans.World.Networks;
+using Mintrans.World.Rail;
 
 namespace Mintrans.Data.Definitions;
 
@@ -23,15 +24,22 @@ public static class ConstructionLoader
             Ids(node.Get("siteTypes")),
             Ids(node.Get("parts")))).ToList();
 
+        var graphs = networks.Where(n => n.IsGraph).Select(n => n.Id).ToHashSet();
         var stations = root.Get("stations").Items().Select(node =>
         {
-            var maxLength = node.Int("maxLength");
-            if (maxLength <= 0)
+            var network = Network(node.Get("network"));
+            var rail = graphs.Contains(network);
+            // Платформа ж/д станции — любой поклеточной длины (docs/10в, раздел 4); у автостанции длина ограничена.
+            var maxLength = rail ? node.Int("maxLength", 0) : node.Int("maxLength");
+            if (!rail && maxLength <= 0)
                 throw node.Get("maxLength").Error("длина станции должна быть положительной");
             var maxTracks = node.Int("maxTracks", 1);
             if (maxTracks <= 0)
                 throw node.Get("maxTracks").Error("число путей станции должно быть положительным");
-            return new StationDefinition(node.String("id"), Network(node.Get("network")), Ids(node.Get("attachTo")), maxLength, maxTracks);
+            var maxDistance = node.Find("maxDistanceM")?.AsDouble() ?? 0;
+            if (rail && maxDistance <= 0)
+                throw (node.Find("maxDistanceM") ?? node).Error("у ж/д станции нужно maxDistanceM — насколько платформа может отстоять от площадки, м");
+            return new StationDefinition(node.String("id"), network, Ids(node.Get("attachTo")), maxLength, maxTracks, maxDistance);
         }).ToList();
 
         var withoutRules = stations.Select(s => s.Network).Except(builds.Select(b => b.Network)).ToList();
@@ -48,8 +56,11 @@ public static class ConstructionLoader
             {
                 "depot" => FacilityPlacement.Depot,
                 "stopOnNetwork" => FacilityPlacement.StopOnNetwork,
-                var other => throw node.Get("placement").Error($"неизвестное размещение «{other}»: нужно depot или stopOnNetwork"),
+                "railDepot" => FacilityPlacement.RailDepot,
+                var other => throw node.Get("placement").Error($"неизвестное размещение «{other}»: нужно depot, stopOnNetwork или railDepot"),
             };
+            if (placement == FacilityPlacement.RailDepot && !graphs.Contains(new TypeId(node.String("network"))))
+                throw node.Get("network").Error("ж/д депо ставится на рельсовую сеть (раскладка «graph»)");
             return new FacilityDefinition(
                 node.String("id"),
                 node.String("title"),
@@ -71,8 +82,8 @@ public static class ConstructionLoader
         var signals = root.Find("signals")?.Items().Select(node =>
         {
             var network = Network(node.Get("network"));
-            if (layouts[network] != TrackNetworkLayer.LayoutName)
-                throw node.Get("network").Error($"сигналы ставятся только на рельсовую сеть (layout «{TrackNetworkLayer.LayoutName}»)");
+            if (layouts[network] != NetworkDefinition.GraphLayout)
+                throw node.Get("network").Error($"сигналы ставятся только на рельсовую сеть (layout «{NetworkDefinition.GraphLayout}»)");
             var logic = node.String("logic") switch
             {
                 "block" => SignalLogic.Block,
